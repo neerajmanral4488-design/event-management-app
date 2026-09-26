@@ -65,11 +65,30 @@
   id="appFrame"
   src="https://script.google.com/a/macros/vama.app/s/AKfycbyXraOdhV8eIdIH5rM8P1seWkGV6YvkISq0FCnOCyiIg0VXo2kJecfH2IWJIqhehx8t/exec"
   allow="camera; microphone"
+  scrolling="yes"
 ></iframe>
 
 <script>
   var frame = document.getElementById('appFrame');
   var loading = document.getElementById('loadingScreen');
+
+  /* A nested (double) iframe — our wrapper, then Google's own internal
+     iframe — can end up laid out against a wide "desktop" assumption
+     (~980px) instead of the real device width, which is what pushed
+     content off-screen. Explicit pixel dimensions on our iframe, kept in
+     sync with the true viewport, force the correct width at every level. */
+  function sizeFrame_() {
+    var vw = window.innerWidth;
+    var vh = window.innerHeight;
+    frame.style.width = vw + 'px';
+    frame.style.height = vh + 'px';
+  }
+  sizeFrame_();
+  window.addEventListener('resize', sizeFrame_);
+  window.addEventListener('orientationchange', function () {
+    setTimeout(sizeFrame_, 300);
+  });
+
   frame.addEventListener('load', function () {
     loading.classList.add('hide');
   });
