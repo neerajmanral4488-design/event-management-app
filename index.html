@@ -985,6 +985,7 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ---------- google.script.run wrapped as a promise ---------- */
 let pendingGsRunCount_ = 0;
@@ -997,34 +998,182 @@ function hideGlobalLoading_() {
   if (pendingGsRunCount_ === 0) document.getElementById('globalLoadingIndicator').classList.add('hidden');
 }
 
-/* This must be your deployed Apps Script Web App URL (ends in /exec).
-   Get it from Apps Script: Deploy -> Manage deployments -> copy the
-   "Web app" URL. The deployment's access must be "Anyone with the link"
-   for this fetch to work cross-origin (see the API_WHITELIST_ note in
-   Code.gs for what that trade-off means). */
-const APPS_SCRIPT_API_URL = 'https://script.google.com/a/macros/vama.app/s/AKfycbyXraOdhV8eIdIH5rM8P1seWkGV6YvkISq0FCnOCyiIg0VXo2kJecfH2IWJIqhehx8t/exec';
+/* ================= SUPABASE CONNECTION ================= */
+const SUPABASE_URL = 'https://yspmmjbxszrymteupwrc.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlzcG1tamJ4c3pyeW10ZXVwd3JjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0ODYwMzcsImV4cCI6MjEwNjA2MjAzN30.UQGOijxEuvE49fznIN56H8vSc6Yo4f05-N6ol30SGZQ';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* Same placeholder-filled defaults Code.gs used to fall back on when a
+   setting had never been saved yet. */
+const DEFAULT_SETTINGS_ = {
+  app_title: 'Event Management',
+  app_subtitle: 'From event creation to dispatch — the entire workflow in one place.',
+  logo_initials: 'EM',
+  card_event_title: 'Event Creation', card_event_desc: 'Create events and assign items to chefs',
+  card_production_title: 'Production', card_production_desc: 'Send material requests linked to events',
+  card_prodhead_title: 'Production Head', card_prodhead_desc: 'Review and forward production requests to Purchase',
+  card_purchase_title: 'Purchase & Store', card_purchase_desc: 'Approvals, inventory, and purchase requests',
+  card_dispatch_title: 'Dispatch', card_dispatch_desc: 'View delivery challans and goods returns',
+  card_admin_title: 'Admin', card_admin_desc: 'Full visibility — activity log, passwords',
+  dispatch_form_url: '', goods_return_form_url: '',
+  low_stock_banner_enabled: 'yes'
+};
+
+/* Every function here used to run on Google's server (Code.gs). Now it
+   runs in the browser and talks to Supabase directly. genId_/actorEmail_/
+   logActivity_ replace the equivalents that used to live server-side. */
+function genId_(prefix) { return prefix + '-' + Date.now().toString().slice(-8); }
+function actorEmail_() { return 'App User'; }
+
+async function logActivity_(dept, user, action, details) {
+  try { await sb.from('activity_log').insert({ department: dept, user_name: user || '', action: action, details: details || '' }); }
+  catch (e) { /* logging should never break the main action */ }
+}
+
+function throwIfErr_(error) { if (error) throw new Error(error.message || String(error)); }
+
+const API_IMPL_ = {
+
+  checkPassword: async function (deptKey, password) {
+    const { data, error } = await sb.rpc('check_password', { p_department: deptKey, p_password: password });
+    throwIfErr_(error);
+    return !!data;
+  },
+
+  getCurrentUserEmail: async function () { return ''; },
+
+  /* ---- departments ---- */
+  getDepartmentsList: async function () {
+    const { data, error } = await sb.from('departments').select('name').order('name');
+    throwIfErr_(error);
+    return (data || []).map(function (r) { return r.name; });
+  },
+  getDepartmentsWithRows: async function () {
+    const { data, error } = await sb.from('departments').select('id,name').order('name');
+    throwIfErr_(error);
+    return (data || []).map(function (r) { return { name: r.name, rowIndex: r.id }; });
+  },
+  addDepartmentName: async function (name) {
+    name = toTitleCaseClient_(String(name).trim());
+    const existing = await API_IMPL_.getDepartmentsList();
+    if (existing.some(function (n) { return n.toLowerCase() === name.toLowerCase(); })) return true;
+    const { error } = await sb.from('departments').insert({ name: name });
+    throwIfErr_(error);
+    logActivity_('Developer', actorEmail_(), 'Department Added', name);
+    return true;
+  },
+  removeDepartmentByRow: async function (rowIndex) {
+    const { error } = await sb.from('departments').delete().eq('id', rowIndex);
+    throwIfErr_(error);
+    logActivity_('Developer', actorEmail_(), 'Department Removed', 'Row ' + rowIndex);
+    return true;
+  },
+
+  /* ---- vendors ---- */
+  getVendorsList: async function () {
+    const { data, error } = await sb.from('vendors').select('name').order('name');
+    throwIfErr_(error);
+    return (data || []).map(function (r) { return r.name; });
+  },
+  getVendorsWithRows: async function () {
+    const { data, error } = await sb.from('vendors').select('id,name').order('name');
+    throwIfErr_(error);
+    return (data || []).map(function (r) { return { name: r.name, rowIndex: r.id }; });
+  },
+  addVendorName: async function (name) {
+    name = toTitleCaseClient_(String(name).trim());
+    const existing = await API_IMPL_.getVendorsList();
+    if (existing.some(function (n) { return n.toLowerCase() === name.toLowerCase(); })) return true;
+    const { error } = await sb.from('vendors').insert({ name: name });
+    throwIfErr_(error);
+    logActivity_('Store', actorEmail_(), 'Vendor Added', name);
+    return true;
+  },
+  removeVendorByRow: async function (rowIndex) {
+    const { error } = await sb.from('vendors').delete().eq('id', rowIndex);
+    throwIfErr_(error);
+    logActivity_('Developer', actorEmail_(), 'Vendor Removed', 'Row ' + rowIndex);
+    return true;
+  },
+
+  /* ---- item list (raw material / finished good / fixed asset) ---- */
+  getRawMaterialsList: async function () {
+    const { data, error } = await sb.from('item_list').select('name,unit').eq('category', 'raw').order('name');
+    throwIfErr_(error);
+    return data || [];
+  },
+  getFinishedGoodsList: async function () {
+    const { data, error } = await sb.from('item_list').select('name,unit').eq('category', 'finished').order('name');
+    throwIfErr_(error);
+    return data || [];
+  },
+  getFixedAssetsList: async function () {
+    const { data, error } = await sb.from('item_list').select('name,unit').eq('category', 'fixed').order('name');
+    throwIfErr_(error);
+    return data || [];
+  },
+  addItemToList: async function (category, name, unit) {
+    name = toTitleCaseClient_(String(name).trim());
+    const catKey = category === 'finished' ? 'finished' : (category === 'fixed' ? 'fixed' : 'raw');
+    const { data: existingRows, error: selErr } = await sb.from('item_list').select('name').eq('category', catKey);
+    throwIfErr_(selErr);
+    const isDuplicate = (existingRows || []).some(function (r) { return String(r.name).toLowerCase() === name.toLowerCase(); });
+    if (isDuplicate) return { added: false, duplicate: true };
+    const { error } = await sb.from('item_list').insert({ category: catKey, name: name, unit: unit || '' });
+    throwIfErr_(error);
+    logActivity_('Item List', actorEmail_(), 'New Item Added (' + catKey + ')', name + (unit ? ' — ' + unit : ''));
+    return { added: true, duplicate: false };
+  },
+
+  /* ---- settings / branding ---- */
+  getAllSettings: async function () {
+    const { data, error } = await sb.from('settings').select('key,value');
+    throwIfErr_(error);
+    const map = {};
+    (data || []).forEach(function (r) { map[r.key] = r.value; });
+    Object.keys(DEFAULT_SETTINGS_).forEach(function (key) {
+      if (!(key in map) || map[key] === '') map[key] = DEFAULT_SETTINGS_[key];
+    });
+    return map;
+  },
+  getAppConfig: async function () {
+    const s = await API_IMPL_.getAllSettings();
+    return {
+      appTitle: s.app_title, appSubtitle: s.app_subtitle, logoInitials: s.logo_initials,
+      cardEventTitle: s.card_event_title, cardEventDesc: s.card_event_desc,
+      cardProductionTitle: s.card_production_title, cardProductionDesc: s.card_production_desc,
+      cardProdHeadTitle: s.card_prodhead_title, cardProdHeadDesc: s.card_prodhead_desc,
+      cardPurchaseTitle: s.card_purchase_title, cardPurchaseDesc: s.card_purchase_desc,
+      cardDispatchTitle: s.card_dispatch_title, cardDispatchDesc: s.card_dispatch_desc,
+      cardAdminTitle: s.card_admin_title, cardAdminDesc: s.card_admin_desc,
+      dispatchFormUrl: s.dispatch_form_url, goodsReturnFormUrl: s.goods_return_form_url,
+      lowStockBannerEnabled: s.low_stock_banner_enabled !== 'no'
+    };
+  },
+  saveSettings: async function (obj) {
+    const rows = Object.keys(obj).map(function (key) { return { key: key, value: obj[key] }; });
+    const { error } = await sb.from('settings').upsert(rows, { onConflict: 'key' });
+    throwIfErr_(error);
+    logActivity_('Developer', actorEmail_(), 'Settings Updated', Object.keys(obj).join(', '));
+    return true;
+  }
+
+  /* More functions (Events, Production, Stock, Bills, Dispatch, Admin,
+     Tickets...) get added here in the next parts — anything not listed
+     yet will show "Not implemented yet" if the UI tries to call it. */
+};
 
 function gsRun(fnName) {
   const args = Array.prototype.slice.call(arguments, 1);
   showGlobalLoading_();
-  return fetch(APPS_SCRIPT_API_URL, {
-    method: 'POST',
-    // Deliberately text/plain, not application/json: Apps Script has no
-    // doOptions handler, so anything that would trigger a CORS preflight
-    // request fails outright. text/plain keeps this a "simple request".
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ fn: fnName, args: args })
-  })
-    .then(function (res) { return res.json(); })
-    .then(function (data) {
-      hideGlobalLoading_();
-      if (data && data.success) return data.result;
-      throw new Error((data && data.error) || 'Request failed');
-    })
-    .catch(function (err) {
-      hideGlobalLoading_();
-      throw err;
-    });
+  const impl = API_IMPL_[fnName];
+  if (!impl) {
+    hideGlobalLoading_();
+    return Promise.reject(new Error('Not built yet: ' + fnName + ' (coming in a later part)'));
+  }
+  return Promise.resolve(impl.apply(null, args))
+    .then(function (result) { hideGlobalLoading_(); return result; })
+    .catch(function (err) { hideGlobalLoading_(); throw err; });
 }
 
 /* ---------- raw material master list ---------- */
