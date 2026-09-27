@@ -122,6 +122,7 @@
   .item-ac-list .opt:hover, .item-ac-list .opt.active{background:var(--blue-pale);}
   .item-ac-list .opt .u{color:var(--ink-soft);font-size:11px;margin-left:6px;}
   .item-ac-input.invalid-item{background:#FBEAEA !important;outline:2px solid var(--red);outline-offset:-2px;}
+  .field-invalid{background:#FBEAEA !important;outline:2px solid var(--red);outline-offset:-2px;}
 
   .dept-view{display:none;}
 
@@ -2713,6 +2714,22 @@ function addEvRow() {
 }
 for (let i = 0; i < 3; i++) addEvRow();
 
+document.getElementById('evItemsBody').addEventListener('input', function (e) {
+  if (e.target.classList.contains('qty-input') && e.target.value.trim()) {
+    e.target.classList.remove('field-invalid');
+  }
+});
+document.getElementById('evItemsBody').addEventListener('change', function (e) {
+  if (e.target.classList.contains('unit-select') && e.target.value) {
+    e.target.classList.remove('field-invalid');
+  }
+  if (e.target.type === 'checkbox') {
+    const wrap = e.target.closest('.multi-select-wrap');
+    const disp = wrap ? wrap.querySelector('.multi-select-display') : null;
+    if (disp && getMultiSelectValues(wrap).length) disp.classList.remove('field-invalid');
+  }
+});
+
 function refreshEventChefSelects() {
   document.querySelectorAll('#evItemsBody .multi-select-wrap').forEach(function (wrap) {
     const currentChecked = getMultiSelectValues(wrap);
@@ -2802,7 +2819,12 @@ async function submitEventClick() {
   const createdBy = document.getElementById('evCreatedBy').value.trim();
   const description = document.getElementById('evDescription').value.trim();
 
-  const items = Array.prototype.slice.call(document.querySelectorAll('#evItemsBody tr')).map(function (tr) {
+  const rows = Array.prototype.slice.call(document.querySelectorAll('#evItemsBody tr'));
+  rows.forEach(function (tr) {
+    Array.prototype.slice.call(tr.querySelectorAll('.field-invalid')).forEach(function (el) { el.classList.remove('field-invalid'); });
+  });
+
+  const items = rows.map(function (tr) {
     const nameEl = tr.querySelector('.item-name-input');
     const qtyEl = tr.querySelector('.qty-input');
     const unitEl = tr.querySelector('.unit-select');
@@ -2814,7 +2836,8 @@ async function submitEventClick() {
       qty: qtyEl ? qtyEl.value.trim() : '',
       unit: unitEl ? unitEl.value.trim() : '',
       chefs: chefs,
-      description: descEl ? descEl.value.trim() : ''
+      description: descEl ? descEl.value.trim() : '',
+      _tr: tr
     };
   }).filter(function (it) { return it.name; });
 
@@ -2824,13 +2847,25 @@ async function submitEventClick() {
   if (items.length === 0) {
     showBanner('eventBanner', 'Please add at least one item.', 'err'); return;
   }
-  const incompleteItems = items.filter(function (it) {
-    return !it.qty || !it.unit || !it.chefs || !it.chefs.length;
+
+  let hasInvalid = false;
+  items.forEach(function (it) {
+    if (!it.qty) { it._tr.querySelector('.qty-input').classList.add('field-invalid'); hasInvalid = true; }
+    if (!it.unit) { it._tr.querySelector('.unit-select').classList.add('field-invalid'); hasInvalid = true; }
+    if (!it.chefs || !it.chefs.length) {
+      const disp = it._tr.querySelector('.multi-select-display');
+      if (disp) disp.classList.add('field-invalid');
+      hasInvalid = true;
+    }
   });
-  if (incompleteItems.length) {
-    showBanner('eventBanner', 'Please fill Qty, Unit, and at least one Department for: ' + incompleteItems.map(function (it) { return it.name; }).join(', '), 'err');
+  if (hasInvalid) {
+    showBanner('eventBanner', 'Please fill the highlighted fields (Qty, Unit, Department) for each item.', 'err');
     return;
   }
+
+  const cleanItems = items.map(function (it) {
+    return { name: it.name, qty: it.qty, unit: it.unit, chefs: it.chefs, description: it.description };
+  });
 
   const btn = document.getElementById('evSendBtn');
   btn.disabled = true;
@@ -2838,10 +2873,10 @@ async function submitEventClick() {
 
   try {
     if (editingEventId) {
-      await gsRun('updateEvent', editingEventId, { eventName, date, location, description, items });
+      await gsRun('updateEvent', editingEventId, { eventName, date, location, description, items: cleanItems });
       showBanner('eventBanner', 'Event updated.', 'ok');
     } else {
-      await gsRun('createEvent', { eventName, date, location, createdBy, description, items });
+      await gsRun('createEvent', { eventName, date, location, createdBy, description, items: cleanItems });
       showBanner('eventBanner', 'Event created.', 'ok');
     }
     cancelEventEdit();
