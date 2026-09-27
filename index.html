@@ -1042,8 +1042,29 @@ function isoToDisplayDate_(isoStr) {
 function rowToEventObj_impl(r) {
   return {
     id: r.id, eventName: r.event_name, date: isoToDisplayDate_(r.date), location: r.location,
-    createdBy: r.created_by, items: r.items || [], status: r.status, createdAt: r.created_at,
+    createdBy: r.created_by, items: r.items || [], status: r.status, createdAt: isoToLocaleIN_(r.created_at),
     description: r.description || ''
+  };
+}
+
+/* Postgres timestamptz columns come back as full ISO strings
+   ("2026-09-08T12:34:56.789+00:00"), but the frontend's parseAppDate()
+   (used for "pending for X hours" badges, activity timing, etc.) only
+   recognizes the old Apps Script format from toLocaleString('en-IN')
+   ("8/9/2026, 12:34:56 pm"). Converting on the way out keeps every
+   display/parsing function elsewhere in this file unchanged. */
+function isoToLocaleIN_(isoStr) {
+  if (!isoStr) return '';
+  return new Date(isoStr).toLocaleString('en-IN');
+}
+
+function rowToProdObj_impl(r) {
+  return {
+    id: r.id, createdAt: isoToLocaleIN_(r.created_at), reqBy: r.req_by, kitchen: r.kitchen,
+    myEmail: r.my_email, purchaseEmail: r.purchase_email, note: r.note,
+    items: r.items || [], status: r.status,
+    eventId: r.event_id || '', eventName: r.event_name || '', updatedAt: isoToLocaleIN_(r.updated_at),
+    forItem: r.for_item || ''
   };
 }
 
@@ -1227,6 +1248,99 @@ const API_IMPL_ = {
     throwIfErr_(error);
     logActivity_('Event Creation', actorEmail_(), 'Event Edited', eventId + ' — ' + data.eventName);
     return true;
+  },
+
+  /* ---- production requests ---- */
+  submitProductionRequest: async function (data) {
+    const id = genId_('PR');
+    data.reqBy = toTitleCaseClient_(data.reqBy);
+    (data.items || []).forEach(function (it) { it.name = toTitleCaseClient_(it.name); });
+    const { error } = await sb.from('production_requests').insert({
+      id: id, req_by: data.reqBy, kitchen: data.kitchen, my_email: data.myEmail || '',
+      purchase_email: data.purchaseEmail || '', note: data.note || '', items: data.items,
+      status: 'pending_head', event_id: data.eventId || null, event_name: data.eventName || '',
+      for_item: data.forItem || ''
+    });
+    throwIfErr_(error);
+    logActivity_('Production', data.reqBy, 'Request Bheji (Production Head ko bhejna baaki hai)', id + (data.eventName ? ' [' + data.eventName + ']' : '') + ' — ' + data.items.length + ' item(s)');
+    return { id: id };
+  },
+  getAllProductionRequests: async function () {
+    const { data, error } = await sb.from('production_requests').select('*').order('created_at', { ascending: false });
+    throwIfErr_(error);
+    return (data || []).map(rowToProdObj_impl);
+  },
+  getStandaloneProductionRequests: async function () {
+    const all = await API_IMPL_.getAllProductionRequests();
+    return all.filter(function (r) { return !r.eventId; });
+  },
+  mapProductionRequestToEvent: async function (requestId, eventId) {
+    const ev = await API_IMPL_.getEventById(eventId);
+    if (!ev) throw new Error('Event not mila.');
+    const { error } = await sb.from('production_requests').update({ event_id: eventId, event_name: ev.eventName }).eq('id', requestId);
+    throwIfErr_(error);
+    logActivity_('Admin', actorEmail_(), 'Standalone Request Mapped to Event', requestId + ' → ' + ev.eventName);
+    return true;
+  },
+  editProductionRequest: async function (id, items, note) {
+    (items || []).forEach(function (it) { it.name = toTitleCaseClient_(it.name); });
+    const { data: existing, error: selErr } = await sb.from('production_requests').select('status').eq('id', id).maybeSingle();
+    throwIfErr_(selErr);
+    if (!existing) throw new Error('Request not mili.');
+    if (existing.status !== 'pending_head') throw new Error('This request has already been reviewed by the Production Head and can no longer be edited here.');
+    const { error } = await sb.from('production_requests').update({ note: note || '', items: items }).eq('id', id);
+    throwIfErr_(error);
+    logActivity_('Production', actorEmail_(), 'Request Edited (before Head review)', id);
+    return true;
+  },
+  decideProductionHeadRequest: async function (id, decision, editedItems) {
+    const { data: existing, error: selErr } = await sb.from('production_requests').select('items').eq('id', id).maybeSingle();
+    throwIfErr_(selErr);
+    if (!existing) throw new Error('Request not found.');
+    let items = existing.items || [];
+    const nowIso = new Date().toISOString();
+
+    if (decision === 'approved') {
+      if (editedItems && editedItems.length) {
+        items = editedItems
+          .map(function (it) { return { name: toTitleCaseClient_(it.name), description: it.description || '', qty: it.qty, unit: it.unit }; })
+          .filter(function (it) { return it.name; });
+        logActivity_('Production Head', actorEmail_(), 'Request Items Edited', id);
+      }
+      const { error } = await sb.from('production_requests').update({ items: items, status: 'pending', updated_at: nowIso }).eq('id', id);
+      throwIfErr_(error);
+      logActivity_('Production Head', actorEmail_(), 'Request Forwarded to Purchase', id);
+      return { status: 'pending' };
+    } else {
+      const { error } = await sb.from('production_requests').update({ status: 'rejected', updated_at: nowIso }).eq('id', id);
+      throwIfErr_(error);
+      logActivity_('Production Head', actorEmail_(), 'Request Rejected', id);
+      return { status: 'rejected' };
+    }
+  },
+  editForwardedProductionRequest: async function (id, items) {
+    (items || []).forEach(function (it) { it.name = toTitleCaseClient_(it.name); });
+    const { data: existing, error: selErr } = await sb.from('production_requests').select('status').eq('id', id).maybeSingle();
+    throwIfErr_(selErr);
+    if (!existing) throw new Error('Request not mili.');
+    if (existing.status !== 'pending') throw new Error('This request can only be edited before Purchase starts issuing it.');
+    const cleanItems = items.map(function (it) { return { name: it.name, description: it.description || '', qty: it.qty, unit: it.unit, issuedQty: 0, remark: '', issueLog: [] }; });
+    const { error } = await sb.from('production_requests').update({ items: cleanItems }).eq('id', id);
+    throwIfErr_(error);
+    logActivity_('Production Head', actorEmail_(), 'Forwarded Request Edited (before Purchase issues)', id);
+    return true;
+  },
+  rejectProductionRequest: async function (id) {
+    const { data: existing, error: selErr } = await sb.from('production_requests').select('items').eq('id', id).maybeSingle();
+    throwIfErr_(selErr);
+    if (!existing) throw new Error('Request not mili.');
+    const items = existing.items || [];
+    const anyIssued = items.some(function (it) { return (parseFloat(it.issuedQty) || 0) > 0; });
+    const finalStatus = anyIssued ? 'partial_rejected' : 'rejected';
+    const { error } = await sb.from('production_requests').update({ status: finalStatus, updated_at: new Date().toISOString() }).eq('id', id);
+    throwIfErr_(error);
+    logActivity_('Purchase', actorEmail_(), anyIssued ? 'Remaining Quantity Cancelled (Partial Fulfillment)' : 'Request Rejected', id);
+    return { status: finalStatus };
   }
 
   /* More functions (Events, Production, Stock, Bills, Dispatch, Admin,
