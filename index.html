@@ -162,12 +162,13 @@
   table.dispatch-table td{border-bottom:1px solid var(--border);padding:8px 10px;color:var(--ink);}
   table.dispatch-table tbody tr:nth-child(even){background:var(--blue-pale-2);}
 
-  .subtabs{display:flex;gap:6px;margin-bottom:20px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+  .subtabs{display:flex;gap:6px;margin-bottom:20px;border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;}
+  .subtabs::-webkit-scrollbar{height:0;}
   .seg-tabs{display:flex;background:var(--blue-pale);border:1px solid var(--border);border-radius:9px;overflow:hidden;margin-bottom:22px;box-shadow:0 1px 3px rgba(11,56,102,0.05);}
   .seg-tab{flex:1;text-align:center;padding:13px 10px;font-size:13.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;border-bottom:3px solid transparent;transition:background .12s ease;}
   .seg-tab:hover{background:rgba(255,255,255,0.5);}
   .seg-tab.active{color:var(--navy);border-bottom-color:var(--blue);background:var(--white);}
-  .subtab{padding:10px 4px;font-size:13px;font-weight:600;color:var(--ink-soft);cursor:pointer;border-bottom:2px solid transparent;margin-right:18px;}
+  .subtab{padding:10px 4px;font-size:13px;font-weight:600;color:var(--ink-soft);cursor:pointer;border-bottom:2px solid transparent;margin-right:18px;white-space:nowrap;flex-shrink:0;}
   .subtab.active{color:var(--blue);border-bottom-color:var(--blue);}
   .subview{display:none;}
   .subview.active{display:block;}
@@ -178,6 +179,28 @@
     .row2, .row3{grid-template-columns:1fr;}
     .role-options{gap:12px;}
     .role-card{width:100%;max-width:320px;}
+  }
+  @media (max-width:600px){
+    /* Item-entry rows (Event/Production/Bill/Purchase forms): stack each
+       row's fields vertically instead of a cramped horizontal-scroll table.
+       Placeholders in each input still say what it's for, so hiding the
+       header row is safe. */
+    .items-table-scroll table.items thead{display:none;}
+    .items-table-scroll table.items, .items-table-scroll table.items tbody,
+    .items-table-scroll table.items tr, .items-table-scroll table.items td{
+      display:block; width:100%;
+    }
+    .items-table-scroll table.items{min-width:0;}
+    .items-table-scroll table.items tr{
+      border:1px solid var(--border); border-radius:8px; margin-bottom:10px; padding:6px; background:var(--blue-pale-2);
+    }
+    .items-table-scroll table.items td{border:none; padding:5px 4px;}
+    .items-table-scroll table.items td:last-child{text-align:right;}
+
+    .multi-select-list{min-width:100% !important; width:100% !important; max-width:100% !important; left:0 !important;}
+
+    #ticketFab{padding:10px 14px !important; font-size:12px !important; bottom:14px !important; right:14px !important;}
+    .content-wrap{padding-bottom:70px;}
   }
   @keyframes spin{to{transform:rotate(360deg);}}
   #globalLoadingIndicator{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:400;background:var(--navy);color:#fff;padding:9px 18px;border-radius:24px;font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:9px;box-shadow:0 4px 16px rgba(11,56,102,0.35);}
@@ -354,7 +377,7 @@
       <!-- ===== ORDERING ===== -->
       <div class="subview active" id="prod-ordering">
         <h3 class="sec" style="margin-top:0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-          <span>Pending Tasks — Events Needing Your Action</span>
+          <span>Pending Tasks</span>
           <button class="btn small" onclick="loadPendingTasksForProduction()">Refresh</button>
         </h3>
         <div class="f" style="max-width:260px;">
@@ -441,7 +464,7 @@
       <!-- ===== PRODUCTION LIST (all departments) ===== -->
       <div class="subview" id="prod-list">
         <h3 class="sec" style="margin-top:0;display:flex;align-items:center;justify-content:space-between;">
-          <span>Today's Production — All Departments</span>
+          <span>Today's Production</span>
           <button class="btn small" onclick="downloadProdListCSV()">⬇ Excel Download</button>
         </h3>
         <div class="row2" style="max-width:700px;align-items:flex-end;">
@@ -469,7 +492,7 @@
       <!-- ===== DEPARTMENT PRODUCTION LIST ===== -->
       <div class="subview" id="prod-deptlist">
         <h3 class="sec" style="margin-top:0;display:flex;align-items:center;justify-content:space-between;">
-          <span>Your Department's Production List</span>
+          <span>My Production List</span>
           <button class="btn small" onclick="downloadDeptProdListCSV()">⬇ Excel Download</button>
         </h3>
         <div class="row2" style="max-width:900px;align-items:flex-end;">
@@ -507,7 +530,7 @@
         <button class="btn small" onclick="loadProductionHeadView()">Refresh</button>
       </h3>
       <div id="prodHeadPendingList"><div class="empty">Loading...</div></div>
-      <h3 class="sec">Forwarded to Purchase — Still Editable</h3>
+      <h3 class="sec">Forwarded</h3>
       <div id="prodHeadForwardedList"><div class="empty">—</div></div>
       <h3 class="sec">History</h3>
       <div id="prodHeadHistoryList"><div class="empty">—</div></div>
@@ -608,7 +631,7 @@
     <div id="poBanner" class="banner" style="margin-top:12px;"></div>
 
     <h3 class="sec" style="display:flex;align-items:center;justify-content:space-between;">
-      <span>Your Submitted Purchase Requests</span>
+      <span>My Requests</span>
       <button class="btn small" onclick="loadMyPoRequests()">Refresh</button>
     </h3>
     <div id="myPoRequests"><div class="empty">Loading...</div></div>
@@ -828,7 +851,7 @@
           <div><button class="btn primary" onclick="addAdmDeptClick()">Add Department</button></div>
         </div>
         <div id="admDeptMgmtBanner" class="banner" style="margin-bottom:12px;"></div>
-        <h3 class="sec">Current Departments / Roles</h3>
+        <h3 class="sec">Departments</h3>
         <div id="admDeptMgmtList"><div class="empty">Loading...</div></div>
       </div>
     </div>
@@ -904,31 +927,31 @@
 
       <div class="subview" id="dev-emails">
 
-        <h3 class="sec" style="margin-top:0;">Production Request → Purchase</h3>
+        <h3 class="sec" style="margin-top:0;">Request</h3>
         <div class="f"><label>Subject</label><input type="text" id="set_email_prod_request_subject"></div>
         <div class="f"><label>Body</label><textarea id="set_email_prod_request_body" rows="4"></textarea></div>
 
-        <h3 class="sec">Production Request Approved</h3>
+        <h3 class="sec">Approved</h3>
         <div class="f"><label>Subject</label><input type="text" id="set_email_prod_approved_subject"></div>
         <div class="f"><label>Body</label><textarea id="set_email_prod_approved_body" rows="4"></textarea></div>
 
-        <h3 class="sec">Production Request Partially Approved</h3>
+        <h3 class="sec">Partial</h3>
         <div class="f"><label>Subject</label><input type="text" id="set_email_prod_partial_subject"></div>
         <div class="f"><label>Body</label><textarea id="set_email_prod_partial_body" rows="4"></textarea></div>
 
-        <h3 class="sec">Production Request Rejected</h3>
+        <h3 class="sec">Rejected</h3>
         <div class="f"><label>Subject</label><input type="text" id="set_email_prod_rejected_subject"></div>
         <div class="f"><label>Body</label><textarea id="set_email_prod_rejected_body" rows="4"></textarea></div>
 
-        <h3 class="sec">Purchase Request → Senior</h3>
+        <h3 class="sec">Purchase Request</h3>
         <div class="f"><label>Subject</label><input type="text" id="set_email_po_request_subject"></div>
         <div class="f"><label>Body</label><textarea id="set_email_po_request_body" rows="4"></textarea></div>
 
-        <h3 class="sec">Purchase Request Approved (by Admin)</h3>
+        <h3 class="sec">Approved</h3>
         <div class="f"><label>Subject</label><input type="text" id="set_email_po_approved_subject"></div>
         <div class="f"><label>Body</label><textarea id="set_email_po_approved_body" rows="4"></textarea></div>
 
-        <h3 class="sec">Purchase Request Rejected (by Admin)</h3>
+        <h3 class="sec">Rejected</h3>
         <div class="f"><label>Subject</label><input type="text" id="set_email_po_rejected_subject"></div>
         <div class="f"><label>Body</label><textarea id="set_email_po_rejected_body" rows="4"></textarea></div>
 
