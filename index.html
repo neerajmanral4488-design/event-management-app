@@ -158,6 +158,8 @@
   .scroll-table-wrap table{margin:0;}
   .scroll-table-wrap thead th{position:sticky;top:0;z-index:5;box-shadow:0 1px 0 var(--border);}
   .scroll-table-wrap table.avail{display:table;overflow-x:visible;}
+  .scroll-table-wrap table.avail th:first-child{position:sticky;left:0;z-index:6;background:var(--blue-pale);}
+  .scroll-table-wrap table.avail td:first-child{position:sticky;left:0;z-index:3;background:#fff;box-shadow:1px 0 0 var(--border);}
   table.dispatch-table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap;}
   table.dispatch-table th{background:var(--blue-pale);color:var(--navy);font-size:10.5px;text-transform:uppercase;letter-spacing:0.03em;text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);}
   table.dispatch-table td{border-bottom:1px solid var(--border);padding:8px 10px;color:var(--ink);}
@@ -348,8 +350,8 @@
     <div class="view active">
       <div class="seg-tabs">
         <div class="seg-tab active" data-prod="ordering" onclick="switchProdTab('ordering')">Ordering</div>
-        <div class="seg-tab" data-prod="list" onclick="switchProdTab('list')">Production List</div>
-        <div class="seg-tab" data-prod="deptlist" onclick="switchProdTab('deptlist')">Department Production List</div>
+        <div class="seg-tab" data-prod="list" onclick="switchProdTab('list')">Menu List</div>
+        <div class="seg-tab" data-prod="deptlist" onclick="switchProdTab('deptlist')">Production</div>
       </div>
 
       <!-- ===== ORDERING ===== -->
@@ -430,9 +432,9 @@
           <div id="prBanner" class="banner" style="margin-top:12px;"></div>
         </div>
 
-        <h3 class="sec" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-          <span>Recent Requests <span id="prMyReqPendingCount" class="meta"></span></span>
-          <select id="prMyReqDeptFilter" onchange="renderMyProductionRequests_()" style="max-width:220px;width:auto;border:1px solid var(--border);border-radius:4px;background:var(--blue-pale-2);padding:9px 10px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;color:var(--ink);">
+        <h3 class="sec" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:nowrap;gap:8px;">
+          <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Recent Requests <span id="prMyReqPendingCount" class="meta"></span></span>
+          <select id="prMyReqDeptFilter" onchange="renderMyProductionRequests_()" style="max-width:130px;width:auto;flex-shrink:0;border:1px solid var(--border);border-radius:4px;background:var(--blue-pale-2);padding:7px 8px;font-family:'IBM Plex Sans',sans-serif;font-size:12px;color:var(--ink);">
             <option value="">All Departments</option>
           </select>
         </h3>
@@ -564,9 +566,9 @@
       <thead><tr>
         <th style="width:200px;">Item</th>
         <th style="width:100px;">Opening</th>
-        <th style="width:80px;">+ Purchase</th>
-        <th style="width:80px;">− Used</th>
-        <th style="width:90px;">= Closing</th>
+        <th style="width:80px;">Purchase</th>
+        <th style="width:80px;">Used</th>
+        <th style="width:90px;">Closing</th>
         <th style="width:90px;">Avg Price</th>
         <th style="width:100px;">Stock Value</th>
         <th style="width:160px;">Min Qty</th>
@@ -797,7 +799,7 @@
           <div><button class="btn small" onclick="loadAdminStock()">Apply</button></div>
         </div>
         <table class="avail">
-          <thead><tr><th style="width:200px;">Item</th><th>Opening</th><th>+ Purchase</th><th>− Used</th><th>= Closing</th><th>Avg Price</th><th>Stock Value</th><th>Min Qty</th><th>Status</th></tr></thead>
+          <thead><tr><th style="width:200px;">Item</th><th>Opening</th><th>Purchase</th><th>Used</th><th>Closing</th><th>Avg Price</th><th>Stock Value</th><th>Min Qty</th><th>Status</th></tr></thead>
           <tbody id="adminStockBody"><tr><td colspan="9" class="empty">Loading...</td></tr></tbody>
         </table>
       </div>
