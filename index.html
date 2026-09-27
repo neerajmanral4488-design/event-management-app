@@ -4610,7 +4610,6 @@ function renderDispatchByEventBox_(data, targetId) {
     return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
       '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden;">' +
       '<span class="who" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:600;">' + ev.event + (ev.eventDate ? ' <span class="meta">(' + formatDateDisplay(ev.eventDate) + ')</span>' : '') + '</span>' +
-      '<span class="meta">' + totalItems + ' item(s)</span>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' +
       statusLabel +
