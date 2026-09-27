@@ -1025,6 +1025,27 @@ const DEFAULT_SETTINGS_ = {
 function genId_(prefix) { return prefix + '-' + Date.now().toString().slice(-8); }
 function actorEmail_() { return 'App User'; }
 
+/* Postgres `date` columns come back as ISO ("2026-09-08"), but the rest
+   of this frontend (formatDateDisplay's no-op path, ddmmyyyyToISO_,
+   isoFromDisplayDate_ in the edit form, date-range filtering) all still
+   expect the dd/mm/yyyy strings the old Sheets-based backend produced.
+   Converting once here, right after reading, keeps every other function
+   in this file completely unchanged. */
+function isoToDisplayDate_(isoStr) {
+  if (!isoStr) return '';
+  const m = String(isoStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[3] + '/' + m[2] + '/' + m[1];
+  return isoStr;
+}
+
+function rowToEventObj_impl(r) {
+  return {
+    id: r.id, eventName: r.event_name, date: isoToDisplayDate_(r.date), location: r.location,
+    createdBy: r.created_by, items: r.items || [], status: r.status, createdAt: r.created_at,
+    description: r.description || ''
+  };
+}
+
 async function logActivity_(dept, user, action, details) {
   try { await sb.from('activity_log').insert({ department: dept, user_name: user || '', action: action, details: details || '' }); }
   catch (e) { /* logging should never break the main action */ }
@@ -1155,6 +1176,55 @@ const API_IMPL_ = {
     const { error } = await sb.from('settings').upsert(rows, { onConflict: 'key' });
     throwIfErr_(error);
     logActivity_('Developer', actorEmail_(), 'Settings Updated', Object.keys(obj).join(', '));
+    return true;
+  },
+
+  /* ---- events ---- */
+  createEvent: async function (data) {
+    const id = genId_('EVT');
+    data.eventName = toTitleCaseClient_(data.eventName);
+    data.location = toTitleCaseClient_(data.location);
+    data.createdBy = toTitleCaseClient_(data.createdBy);
+    (data.items || []).forEach(function (it) { it.name = toTitleCaseClient_(it.name); });
+    const { error } = await sb.from('events').insert({
+      id: id, event_name: data.eventName, date: data.date || null, location: data.location,
+      created_by: data.createdBy, items: data.items, status: 'active', description: data.description || ''
+    });
+    throwIfErr_(error);
+    logActivity_('Event Creation', data.createdBy, 'Event Banaya', id + ' — ' + data.eventName + ' (' + data.items.length + ' item(s))');
+    return { id: id };
+  },
+  getAllEvents: async function () {
+    const { data, error } = await sb.from('events').select('*').order('created_at', { ascending: false });
+    throwIfErr_(error);
+    return (data || []).map(rowToEventObj_impl);
+  },
+  getActiveEvents: async function () {
+    const { data, error } = await sb.from('events').select('*').eq('status', 'active').order('created_at', { ascending: false });
+    throwIfErr_(error);
+    return (data || []).map(rowToEventObj_impl);
+  },
+  getEventById: async function (eventId) {
+    const { data, error } = await sb.from('events').select('*').eq('id', eventId).maybeSingle();
+    throwIfErr_(error);
+    return data ? rowToEventObj_impl(data) : null;
+  },
+  setEventStatus: async function (eventId, status) {
+    const { error } = await sb.from('events').update({ status: status }).eq('id', eventId);
+    throwIfErr_(error);
+    logActivity_('Event Creation', actorEmail_(), 'Event Status Badla: ' + status, eventId);
+    return true;
+  },
+  updateEvent: async function (eventId, data) {
+    data.eventName = toTitleCaseClient_(data.eventName);
+    data.location = toTitleCaseClient_(data.location);
+    (data.items || []).forEach(function (it) { it.name = toTitleCaseClient_(it.name); });
+    const { error } = await sb.from('events').update({
+      event_name: data.eventName, date: data.date || null, location: data.location,
+      items: data.items, description: data.description || ''
+    }).eq('id', eventId);
+    throwIfErr_(error);
+    logActivity_('Event Creation', actorEmail_(), 'Event Edited', eventId + ' — ' + data.eventName);
     return true;
   }
 
