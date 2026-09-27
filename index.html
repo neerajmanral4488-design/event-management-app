@@ -2435,19 +2435,12 @@ function enterDept(deptKey) {
     return; // ignore a duplicate rapid-fire call for the same department (e.g. double-trigger glitch)
   }
 
-  const sinceLastSwitch = now - lastEnterDeptTime;
-  if (lastEnterDeptTime > 0 && sinceLastSwitch < 900) {
-    // Switching departments too quickly back-to-back can pile up several
-    // unfinished google.script.run calls at once, which can stall the bridge
-    // after a few rapid switches. Give the previous batch a moment to settle,
-    // and if the person switched again before this fires, only the most
-    // recent request actually proceeds (older ones are dropped, not queued).
-    pendingEnterDeptKey = deptKey;
-    setTimeout(function () {
-      if (pendingEnterDeptKey === deptKey) enterDept(deptKey);
-    }, 900 - sinceLastSwitch);
-    return;
-  }
+  // NOTE: there used to be a 900ms throttle here that deferred rapid
+  // department switches. It existed because google.script.run's bridge
+  // would stall when several calls piled up — but that backend is gone,
+  // and Supabase handles concurrent requests fine. Worse, the deferred
+  // call was dropped whenever another switch happened first, which is
+  // exactly what left the screen blank after a few quick switches.
 
   pendingEnterDeptKey = null;
   lastEnterDeptTime = now;
@@ -2484,6 +2477,19 @@ function enterDept(deptKey) {
     if (deptKey === 'production') { switchProdTab('ordering'); loadEventOptionsForProduction(); loadMyProductionRequests(); loadDepartmentsListGlobal(); loadPendingTasksForProduction(); closeNewProdRequestForm(); }
     if (deptKey === 'dispatch') loadDispatchByEvent();
     if (deptKey === 'dev') loadDevSettings();
+
+    // Safety net: if for any reason neither a department view nor the role
+    // screen ends up visible, the person is left staring at a blank page
+    // with no way back except a manual reload. Catch that and recover.
+    setTimeout(function () {
+      const anyDeptVisible = document.querySelector('.dept-view.active');
+      const roleVisible = !document.getElementById('roleScreen').classList.contains('hidden');
+      const gateVisible = !document.getElementById('pwGate').classList.contains('hidden');
+      if (!anyDeptVisible && !roleVisible && !gateVisible) {
+        console.warn('Blank state detected after entering "' + deptKey + '" — recovering to role screen.');
+        showRoleScreen();
+      }
+    }, 400);
   } catch (e) {
     console.error('enterDept failed, returning to role screen:', e);
     showRoleScreen();
