@@ -157,6 +157,7 @@
   .scroll-table-wrap{max-height:600px;overflow-y:auto;overflow-x:auto;margin-bottom:16px;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:6px;}
   .scroll-table-wrap table{margin:0;}
   .scroll-table-wrap thead th{position:sticky;top:0;z-index:5;box-shadow:0 1px 0 var(--border);}
+  .scroll-table-wrap table.avail{display:table;overflow-x:visible;}
   table.dispatch-table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap;}
   table.dispatch-table th{background:var(--blue-pale);color:var(--navy);font-size:10.5px;text-transform:uppercase;letter-spacing:0.03em;text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);}
   table.dispatch-table td{border-bottom:1px solid var(--border);padding:8px 10px;color:var(--ink);}
@@ -296,7 +297,7 @@
   <div class="tabs hidden" id="tabsBar">
     <div class="tab active" data-view="approve" onclick="switchTab('approve')">Approval</div>
     <div class="tab" data-view="store" onclick="switchTab('store')">Store</div>
-    <div class="tab" data-view="porequest" onclick="switchTab('porequest')">Purchase Request</div>
+    <div class="tab" data-view="porequest" onclick="switchTab('porequest')">PR</div>
     <div class="tab" data-view="bills" onclick="switchTab('bills')">Bills</div>
   </div>
 
@@ -404,7 +405,7 @@
           <div class="friendly-section-label">🧾 Raw Materials Needed (To Send to Purchase)</div>
           <div class="items-table-scroll">
           <table class="items">
-            <thead><tr><th>Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th style="width:120px;">Description</th><th style="width:30px;"></th></tr></thead>
+            <thead><tr><th style="width:200px;">Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th style="width:120px;">Description</th><th style="width:30px;"></th></tr></thead>
             <tbody id="prItemsBody"></tbody>
           </table>
           </div>
@@ -561,14 +562,14 @@
     <div class="scroll-table-wrap">
     <table class="avail" id="stockTable">
       <thead><tr>
-        <th>Item</th>
+        <th style="width:200px;">Item</th>
         <th style="width:100px;">Opening</th>
         <th style="width:80px;">+ Purchase</th>
         <th style="width:80px;">− Used</th>
         <th style="width:90px;">= Closing</th>
         <th style="width:90px;">Avg Price</th>
         <th style="width:100px;">Stock Value</th>
-        <th style="width:130px;">Min Qty</th>
+        <th style="width:160px;">Min Qty</th>
         <th style="width:120px;">Status</th>
       </tr></thead>
       <tbody id="stockBody"><tr><td colspan="9" class="empty">Loading...</td></tr></tbody>
@@ -586,7 +587,7 @@
 
     <div class="items-table-scroll">
     <table class="items">
-      <thead><tr><th>Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th style="width:120px;">Description</th><th style="width:30px;"></th></tr></thead>
+      <thead><tr><th style="width:200px;">Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th style="width:120px;">Description</th><th style="width:30px;"></th></tr></thead>
       <tbody id="poItemsBody"></tbody>
     </table>
     </div>
@@ -630,11 +631,11 @@
       </div>
     </div>
     <div class="f"><label>Recorded By</label><input type="text" id="billRecordedBy" placeholder="Your name"></div>
-    <div class="f"><label>Attach Bill Photo/Scan (optional, one or more)</label><input type="file" id="billAttachments" multiple accept="image/*,.pdf"></div>
+    <div class="f"><label>Attach Bill Photo/Scan (optional, one or more, max 10 MB each)</label><input type="file" id="billAttachments" multiple accept="image/*,.pdf"></div>
 
     <div class="items-table-scroll">
     <table class="items">
-      <thead><tr><th>Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th style="width:90px;">Price/Unit</th><th style="width:90px;">Line Total</th><th style="width:120px;">Description</th><th style="width:30px;"></th></tr></thead>
+      <thead><tr><th style="width:200px;">Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th style="width:90px;">Price/Unit</th><th style="width:90px;">Line Total</th><th style="width:120px;">Description</th><th style="width:30px;"></th></tr></thead>
       <tbody id="billItemsBody"></tbody>
     </table>
     </div>
@@ -662,9 +663,10 @@
         <button class="btn small" onclick="downloadBillsCSV()">⬇ Excel Download</button>
       </span>
     </h3>
-    <div class="row2" style="max-width:460px;">
+    <div class="row3" style="max-width:680px;">
       <div class="f"><label>From Date</label><input type="date" id="billsFromDate" onchange="filterBillsList()"></div>
       <div class="f"><label>To Date</label><input type="date" id="billsToDate" onchange="filterBillsList()"></div>
+      <div class="f"><label>Vendor</label><input type="text" id="billsVendorSearch" placeholder="e.g. Local Vendor" oninput="filterBillsList()"></div>
     </div>
     <div id="billsList"><div class="empty">Loading...</div></div>
   </div>
@@ -795,7 +797,7 @@
           <div><button class="btn small" onclick="loadAdminStock()">Apply</button></div>
         </div>
         <table class="avail">
-          <thead><tr><th>Item</th><th>Opening</th><th>+ Purchase</th><th>− Used</th><th>= Closing</th><th>Avg Price</th><th>Stock Value</th><th>Min Qty</th><th>Status</th></tr></thead>
+          <thead><tr><th style="width:200px;">Item</th><th>Opening</th><th>+ Purchase</th><th>− Used</th><th>= Closing</th><th>Avg Price</th><th>Stock Value</th><th>Min Qty</th><th>Status</th></tr></thead>
           <tbody id="adminStockBody"><tr><td colspan="9" class="empty">Loading...</td></tr></tbody>
         </table>
       </div>
@@ -2700,17 +2702,17 @@ async function loadApprovalView() {
     }
     const rowId = 'apprRow-' + r.id;
     const rc = statusRowColors_(r.status);
-    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
-      '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden;">' +
-      '<span class="reqno">' + r.id + '</span>' +
-      '<span class="who" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:600;">' + r.reqBy + ' — ' + r.kitchen + (r.eventName ? ' · ' + r.eventName : '') + (r.forItem ? ' · for <b>' + r.forItem + '</b>' : '') + '</span>' +
+    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
+      '<div style="min-width:0;flex:1;">' +
+      '<div class="who" style="font-size:13px;font-weight:600;overflow-wrap:break-word;">' + (r.eventName || (r.reqBy + ' — ' + r.kitchen)) + '</div>' +
+      '<div class="meta" style="font-size:11px;margin-top:1px;">' + r.reqBy + ' · ' + r.kitchen + (r.forItem ? ' · for ' + r.forItem : '') + '</div>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' +
       '<span class="status ' + info.cls + '">' + info.label + '</span>' +
       '<span style="color:var(--ink-soft);font-size:11px;">▾</span>' +
       '</div></div>' +
       '<div id="' + rowId + '" class="hidden" style="border:2px solid ' + rc.border + ';border-top:none;border-radius:0 0 8px 8px;margin:-9px 0 16px;padding:12px 14px;background:' + rc.detailBg + ';box-shadow:0 2px 6px rgba(11,56,102,0.08);">' +
-      '<div class="meta">' + r.createdAt + ' · ' + r.myEmail + '</div>' +
+      '<div class="meta">' + r.id + ' · ' + r.createdAt + ' · ' + r.myEmail + '</div>' +
       (r.forItem ? '<div class="meta" style="font-weight:600;">🍽️ For: ' + r.forItem + '</div>' : '') +
       pendingBadgeHtml(r.createdAt) +
       renderFlowStepper(r.status) +
@@ -2745,17 +2747,17 @@ async function loadApprovalView() {
     const info = statusBadgeInfo(r.status);
     const rowId = 'apprHistRow-' + r.id;
     const rc = statusRowColors_(r.status);
-    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
-      '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden;">' +
-      '<span class="reqno">' + r.id + '</span>' +
-      '<span class="who" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:600;">' + r.reqBy + ' — ' + r.kitchen + (r.eventName ? ' · ' + r.eventName : '') + (r.forItem ? ' · for <b>' + r.forItem + '</b>' : '') + '</span>' +
+    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
+      '<div style="min-width:0;flex:1;">' +
+      '<div class="who" style="font-size:13px;font-weight:600;overflow-wrap:break-word;">' + (r.eventName || (r.reqBy + ' — ' + r.kitchen)) + '</div>' +
+      '<div class="meta" style="font-size:11px;margin-top:1px;">' + r.reqBy + ' · ' + r.kitchen + (r.forItem ? ' · for ' + r.forItem : '') + '</div>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' +
       '<span class="status ' + info.cls + '">' + info.label + '</span>' +
       '<span style="color:var(--ink-soft);font-size:11px;">▾</span>' +
       '</div></div>' +
       '<div id="' + rowId + '" class="hidden" style="border:2px solid ' + rc.border + ';border-top:none;border-radius:0 0 8px 8px;margin:-9px 0 16px;padding:12px 14px;background:' + rc.detailBg + ';box-shadow:0 2px 6px rgba(11,56,102,0.08);">' +
-      '<div class="meta">Submitted ' + r.createdAt + (r.updatedAt ? ' · Decided ' + r.updatedAt : '') + '</div>' +
+      '<div class="meta">' + r.id + ' · Submitted ' + r.createdAt + (r.updatedAt ? ' · Decided ' + r.updatedAt : '') + '</div>' +
       (r.forItem ? '<div class="meta" style="font-weight:600;">🍽️ For: ' + r.forItem + '</div>' : '') +
       renderFlowStepper(r.status) +
       '<table class="avail" style="margin:6px 0;table-layout:fixed;"><thead><tr><th style="width:220px;">Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th style="width:80px;">Value</th><th>Note</th></tr></thead><tbody>' +
@@ -3057,6 +3059,14 @@ async function submitBillClick() {
     return;
   }
 
+  const fileInputCheck = document.getElementById('billAttachments');
+  const oversized = Array.prototype.slice.call(fileInputCheck.files).filter(function (f) { return f.size > 10 * 1024 * 1024; });
+  if (oversized.length) {
+    banner.textContent = 'Too large (max 10 MB each): ' + oversized.map(function (f) { return f.name; }).join(', ');
+    banner.className = 'banner show err';
+    return;
+  }
+
   const btn = document.getElementById('billSubmitBtn');
   btn.disabled = true;
   banner.textContent = 'Saving...';
@@ -3096,6 +3106,7 @@ async function loadBillsList() {
   if (!allBills) allBills = [];
   document.getElementById('billsFromDate').value = '';
   document.getElementById('billsToDate').value = '';
+  document.getElementById('billsVendorSearch').value = '';
   renderBillsList(allBills);
 }
 
@@ -3108,11 +3119,12 @@ function ddmmyyyyToISO_(s) {
 function getFilteredBills_() {
   const from = document.getElementById('billsFromDate').value;
   const to = document.getElementById('billsToDate').value;
-  if (!from && !to) return allBills;
+  const vendorQ = document.getElementById('billsVendorSearch').value.trim().toLowerCase();
   return allBills.filter(function (b) {
     const iso = ddmmyyyyToISO_(b.date);
     if (from && iso && iso < from) return false;
     if (to && iso && iso > to) return false;
+    if (vendorQ && String(b.vendorName || '').toLowerCase().indexOf(vendorQ) === -1) return false;
     return true;
   });
 }
@@ -3228,23 +3240,22 @@ async function loadMyPoRequests() {
     const editable = r.status === 'pending';
     const rowId = 'poReqRow-' + r.id;
     const rc = statusRowColors_(r.status);
-    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
-      '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden;">' +
-      '<span class="reqno">' + r.id + '</span>' +
-      '<span class="who" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:600;">' + r.reqBy + '</span>' +
+    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
+      '<div style="min-width:0;flex:1;">' +
+      '<div class="who" style="font-size:13px;font-weight:600;overflow-wrap:break-word;">' + r.reqBy + '</div>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' +
       '<span class="status ' + r.status + '">' + r.status + '</span>' +
       '<span style="color:var(--ink-soft);font-size:11px;">▾</span>' +
       '</div></div>' +
       '<div id="' + rowId + '" class="hidden" style="border:2px solid ' + rc.border + ';border-top:none;border-radius:0 0 8px 8px;margin:-9px 0 16px;padding:12px 14px;background:' + rc.detailBg + ';box-shadow:0 2px 6px rgba(11,56,102,0.08);">' +
-      '<div class="meta">' + r.createdAt + '</div>' +
+      '<div class="meta">' + r.id + ' · ' + r.createdAt + '</div>' +
       statusTimeHtml(r.status, r.createdAt, r.updatedAt, ['pending']) +
       '<table class="avail" style="margin:6px 0;table-layout:fixed;"><thead><tr><th style="width:220px;">Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th>Description</th></tr></thead><tbody>' + r.items.map(function (it) { return '<tr><td>' + it.name + '</td><td>' + it.qty + '</td><td>' + it.unit + '</td><td class="meta">' + (it.description || '') + '</td></tr>'; }).join('') + '</tbody></table>' +
       (editable ?
         '<div class="actions"><button class="btn small" onclick="togglePoEdit(\'' + r.id + '\')">✏️ Edit (before decision)</button></div>' +
         '<div id="poEditWrap-' + r.id + '" class="hidden" style="margin-top:10px;">' +
-        '<table class="items"><thead><tr><th>Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th style="width:120px;">Description</th><th style="width:30px;"></th></tr></thead>' +
+        '<table class="items"><thead><tr><th style="width:200px;">Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th style="width:120px;">Description</th><th style="width:30px;"></th></tr></thead>' +
         '<tbody id="poEditItems-' + r.id + '">' +
         r.items.map(function (it) {
           return '<tr><td><div class="item-ac-wrap"><input type="text" class="item-ac-input" value="' + escapeAttr_(it.name) + '" oninput="onItemInput(this)" onfocus="onItemInput(this)" onkeydown="onItemKeydown(event,this)" onblur="onItemBlur(this)"><div class="item-ac-list hidden"></div></div></td>' +
@@ -3372,17 +3383,17 @@ async function loadDashboard() {
     const info = statusBadgeInfo(r.status);
     const rowId = 'admProdRow-' + r.id;
     const rc = statusRowColors_(r.status);
-    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
-      '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden;">' +
-      '<span class="reqno">' + r.id + '</span>' +
-      '<span class="who" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:600;">' + r.reqBy + ' — ' + r.kitchen + (r.eventName ? ' · ' + r.eventName : '') + (r.forItem ? ' · for <b>' + r.forItem + '</b>' : '') + '</span>' +
+    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
+      '<div style="min-width:0;flex:1;">' +
+      '<div class="who" style="font-size:13px;font-weight:600;overflow-wrap:break-word;">' + (r.eventName || (r.reqBy + ' — ' + r.kitchen)) + '</div>' +
+      '<div class="meta" style="font-size:11px;margin-top:1px;">' + r.reqBy + ' · ' + r.kitchen + (r.forItem ? ' · for ' + r.forItem : '') + '</div>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' +
       '<span class="status ' + info.cls + '">' + info.label + '</span>' +
       '<span style="color:var(--ink-soft);font-size:11px;">▾</span>' +
       '</div></div>' +
       '<div id="' + rowId + '" class="hidden" style="border:2px solid ' + rc.border + ';border-top:none;border-radius:0 0 8px 8px;margin:-9px 0 16px;padding:12px 14px;background:' + rc.detailBg + ';box-shadow:0 2px 6px rgba(11,56,102,0.08);">' +
-      '<div class="meta">' + r.createdAt + '</div>' +
+      '<div class="meta">' + r.id + ' · ' + r.createdAt + '</div>' +
       statusTimeHtml(r.status, r.createdAt, r.updatedAt, ['pending_head', 'pending', 'partial']) +
       renderFlowStepper(r.status) +
       '<table class="avail" style="margin:6px 0;table-layout:fixed;"><thead><tr><th style="width:220px;">Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th>Description</th></tr></thead><tbody>' + r.items.map(function (it) { return '<tr><td>' + it.name + '</td><td>' + it.qty + '</td><td>' + it.unit + '</td><td class="meta">' + (it.description || '') + '</td></tr>'; }).join('') + '</tbody></table></div>';
@@ -3391,17 +3402,16 @@ async function loadDashboard() {
   poBox.innerHTML = data.purchase.length ? data.purchase.map(function (r) {
     const rowId = 'admPoRow-' + r.id;
     const rc = statusRowColors_(r.status);
-    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
-      '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden;">' +
-      '<span class="reqno">' + r.id + '</span>' +
-      '<span class="who" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:600;">' + r.reqBy + '</span>' +
+    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
+      '<div style="min-width:0;flex:1;">' +
+      '<div class="who" style="font-size:13px;font-weight:600;overflow-wrap:break-word;">' + r.reqBy + '</div>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' +
       '<span class="status ' + r.status + '">' + r.status + '</span>' +
       '<span style="color:var(--ink-soft);font-size:11px;">▾</span>' +
       '</div></div>' +
       '<div id="' + rowId + '" class="hidden" style="border:2px solid ' + rc.border + ';border-top:none;border-radius:0 0 8px 8px;margin:-9px 0 16px;padding:12px 14px;background:' + rc.detailBg + ';box-shadow:0 2px 6px rgba(11,56,102,0.08);">' +
-      '<div class="meta">' + r.createdAt + ' · Senior: ' + r.seniorEmail + '</div>' +
+      '<div class="meta">' + r.id + ' · ' + r.createdAt + ' · Senior: ' + r.seniorEmail + '</div>' +
       statusTimeHtml(r.status, r.createdAt, r.updatedAt, ['pending']) +
       '<table class="avail" style="margin:6px 0;table-layout:fixed;"><thead><tr><th style="width:220px;">Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th>Description</th></tr></thead><tbody>' + r.items.map(function (it) { return '<tr><td>' + it.name + '</td><td>' + it.qty + '</td><td>' + it.unit + '</td><td class="meta">' + (it.description || '') + '</td></tr>'; }).join('') + '</tbody></table>' +
       (r.status === 'pending' ?
@@ -4436,17 +4446,17 @@ function renderMyProductionRequests_() {
     const editable = r.status === 'pending_head';
     const rowId = 'reqRow-' + r.id;
     const rc = statusRowColors_(r.status);
-    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
-      '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden;">' +
-      '<span class="reqno">' + r.id + '</span>' +
-      '<span class="who" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:600;">' + r.reqBy + ' — ' + r.kitchen + (r.eventName ? ' · ' + r.eventName : '') + (r.forItem ? ' · for <b>' + r.forItem + '</b>' : '') + '</span>' +
+    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
+      '<div style="min-width:0;flex:1;">' +
+      '<div class="who" style="font-size:13px;font-weight:600;overflow-wrap:break-word;">' + (r.eventName || (r.reqBy + ' — ' + r.kitchen)) + '</div>' +
+      '<div class="meta" style="font-size:11px;margin-top:1px;">' + r.reqBy + ' · ' + r.kitchen + (r.forItem ? ' · for ' + r.forItem : '') + '</div>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' +
       '<span class="status ' + info.cls + '">' + info.label + '</span>' +
       '<span style="color:var(--ink-soft);font-size:11px;">▾</span>' +
       '</div></div>' +
       '<div id="' + rowId + '" class="hidden" style="border:2px solid ' + rc.border + ';border-top:none;border-radius:0 0 8px 8px;margin:-9px 0 16px;padding:12px 14px;background:' + rc.detailBg + ';box-shadow:0 2px 6px rgba(11,56,102,0.08);">' +
-      '<div class="meta">Submitted ' + r.createdAt + '</div>' +
+      '<div class="meta">' + r.id + ' · Submitted ' + r.createdAt + '</div>' +
       (r.forItem ? '<div class="meta" style="font-weight:600;">🍽️ For: ' + r.forItem + '</div>' : '') +
       statusTimeHtml(r.status, r.createdAt, r.updatedAt, ['pending_head', 'pending', 'partial']) +
       renderFlowStepper(r.status) +
@@ -4464,7 +4474,7 @@ function renderMyProductionRequests_() {
       (editable ?
         '<div class="actions"><button class="btn small" onclick="toggleEditMyRequest(\'' + r.id + '\')">✏️ Edit (before Head review)</button></div>' +
         '<div id="editWrap-' + r.id + '" class="hidden" style="margin-top:10px;">' +
-        '<table class="items"><thead><tr><th>Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th style="width:120px;">Description</th><th style="width:30px;"></th></tr></thead>' +
+        '<table class="items"><thead><tr><th style="width:200px;">Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th style="width:120px;">Description</th><th style="width:30px;"></th></tr></thead>' +
         '<tbody id="editItems-' + r.id + '">' +
         r.items.map(function (it) {
           return '<tr><td><div class="item-ac-wrap"><input type="text" class="item-ac-input" value="' + escapeAttr_(it.name) + '" oninput="onItemInput(this)" onfocus="onItemInput(this)" onkeydown="onItemKeydown(event,this)" onblur="onItemBlur(this)"><div class="item-ac-list hidden"></div></div></td>' +
@@ -4574,7 +4584,7 @@ function renderDispatchByEventBox_(data, targetId) {
     else if (ev.faStatus === 'partial') statusLabel = '<span class="status partial">Partially Returned</span>';
     else if (ev.faStatus === 'pending') statusLabel = '<span class="status pending">Return Pending</span>';
 
-    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
+    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
       '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden;">' +
       '<span class="who" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:600;">' + ev.event + (ev.eventDate ? ' <span class="meta">(' + formatDateDisplay(ev.eventDate) + ')</span>' : '') + '</span>' +
       '<span class="meta">' + totalItems + ' item(s)</span>' +
@@ -4741,24 +4751,24 @@ function renderProdHeadPending_() {
 
     const rowId = 'phPendRow-' + r.id;
     const rc = statusRowColors_('pending_head');
-    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
-      '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden;">' +
-      '<span class="reqno">' + r.id + '</span>' +
-      '<span class="who" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:600;">' + r.reqBy + ' — ' + r.kitchen + (r.eventName ? ' · ' + r.eventName : '') + (r.forItem ? ' · for <b>' + r.forItem + '</b>' : '') + '</span>' +
+    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
+      '<div style="min-width:0;flex:1;">' +
+      '<div class="who" style="font-size:13px;font-weight:600;overflow-wrap:break-word;">' + (r.eventName || (r.reqBy + ' — ' + r.kitchen)) + '</div>' +
+      '<div class="meta" style="font-size:11px;margin-top:1px;">' + r.reqBy + ' · ' + r.kitchen + (r.forItem ? ' · for ' + r.forItem : '') + '</div>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' +
       '<span class="status pending">pending</span>' +
       '<span style="color:var(--ink-soft);font-size:11px;">▾</span>' +
       '</div></div>' +
       '<div id="' + rowId + '" class="hidden" style="border:2px solid ' + rc.border + ';border-top:none;border-radius:0 0 8px 8px;margin:-9px 0 16px;padding:12px 14px;background:' + rc.detailBg + ';box-shadow:0 2px 6px rgba(11,56,102,0.08);">' +
-      '<div class="meta">' + r.createdAt + ' · ' + r.myEmail + '</div>' +
+      '<div class="meta">' + r.id + ' · ' + r.createdAt + ' · ' + r.myEmail + '</div>' +
       (r.forItem ? '<div class="meta" style="font-weight:600;">🍽️ For: ' + r.forItem + '</div>' : '') +
       pendingBadgeHtml(r.createdAt) +
       renderFlowStepper(r.status) +
       dishSection +
       relatedSection +
       '<div class="meta" style="font-weight:600;margin-top:4px;">Raw Material Requested (editable before approving):</div>' +
-      '<table class="items"><thead><tr><th>Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th style="width:120px;">Description</th><th style="width:30px;"></th></tr></thead>' +
+      '<table class="items"><thead><tr><th style="width:200px;">Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th style="width:120px;">Description</th><th style="width:30px;"></th></tr></thead>' +
       '<tbody id="phItems-' + r.id + '">' +
       r.items.map(function (it) {
         return '<tr><td><div class="item-ac-wrap"><input type="text" class="item-ac-input" value="' + it.name + '" oninput="onItemInput(this)" onfocus="onItemInput(this)" onkeydown="onItemKeydown(event,this)" onblur="onItemBlur(this)"><div class="item-ac-list hidden"></div></div></td>' +
@@ -4852,10 +4862,10 @@ async function loadProductionHeadView() {
   forwardedBox.innerHTML = forwarded.length ? forwarded.map(function (r) {
     const rowId = 'phFwRow-' + r.id;
     const rc = statusRowColors_('pending');
-    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
-      '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden;">' +
-      '<span class="reqno">' + r.id + '</span>' +
-      '<span class="who" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:600;">' + r.reqBy + ' — ' + r.kitchen + (r.eventName ? ' · ' + r.eventName : '') + (r.forItem ? ' · for <b>' + r.forItem + '</b>' : '') + '</span>' +
+    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
+      '<div style="min-width:0;flex:1;">' +
+      '<div class="who" style="font-size:13px;font-weight:600;overflow-wrap:break-word;">' + (r.eventName || (r.reqBy + ' — ' + r.kitchen)) + '</div>' +
+      '<div class="meta" style="font-size:11px;margin-top:1px;">' + r.reqBy + ' · ' + r.kitchen + (r.forItem ? ' · for ' + r.forItem : '') + '</div>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' +
       '<span class="status pending">pending — with Purchase</span>' +
@@ -4867,7 +4877,7 @@ async function loadProductionHeadView() {
       renderFlowStepper(r.status) +
       '<button class="btn small" onclick="toggleEditForwarded(\'' + r.id + '\')">✏️ Edit</button>' +
       '<div id="fwEditWrap-' + r.id + '" class="hidden" style="margin-top:10px;">' +
-      '<table class="items"><thead><tr><th>Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th style="width:120px;">Description</th><th style="width:30px;"></th></tr></thead>' +
+      '<table class="items"><thead><tr><th style="width:200px;">Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th style="width:120px;">Description</th><th style="width:30px;"></th></tr></thead>' +
       '<tbody id="fwEditItems-' + r.id + '">' +
       r.items.map(function (it) {
         return '<tr><td><div class="item-ac-wrap"><input type="text" class="item-ac-input" value="' + escapeAttr_(it.name) + '" oninput="onItemInput(this)" onfocus="onItemInput(this)" onkeydown="onItemKeydown(event,this)" onblur="onItemBlur(this)"><div class="item-ac-list hidden"></div></div></td>' +
@@ -4887,17 +4897,17 @@ async function loadProductionHeadView() {
     const info = statusBadgeInfo(r.status);
     const rowId = 'phHistRow-' + r.id;
     const rc = statusRowColors_(r.status);
-    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
-      '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden;">' +
-      '<span class="reqno">' + r.id + '</span>' +
-      '<span class="who" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:600;">' + r.reqBy + ' — ' + r.kitchen + (r.eventName ? ' · ' + r.eventName : '') + (r.forItem ? ' · for <b>' + r.forItem + '</b>' : '') + '</span>' +
+    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
+      '<div style="min-width:0;flex:1;">' +
+      '<div class="who" style="font-size:13px;font-weight:600;overflow-wrap:break-word;">' + (r.eventName || (r.reqBy + ' — ' + r.kitchen)) + '</div>' +
+      '<div class="meta" style="font-size:11px;margin-top:1px;">' + r.reqBy + ' · ' + r.kitchen + (r.forItem ? ' · for ' + r.forItem : '') + '</div>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' +
       '<span class="status ' + info.cls + '">' + info.label + '</span>' +
       '<span style="color:var(--ink-soft);font-size:11px;">▾</span>' +
       '</div></div>' +
       '<div id="' + rowId + '" class="hidden" style="border:2px solid ' + rc.border + ';border-top:none;border-radius:0 0 8px 8px;margin:-9px 0 16px;padding:12px 14px;background:' + rc.detailBg + ';box-shadow:0 2px 6px rgba(11,56,102,0.08);">' +
-      '<div class="meta">Submitted ' + r.createdAt + '</div>' +
+      '<div class="meta">' + r.id + ' · Submitted ' + r.createdAt + '</div>' +
       (r.forItem ? '<div class="meta" style="font-weight:600;">🍽️ For: ' + r.forItem + '</div>' : '') +
       statusTimeHtml(r.status, r.createdAt, r.updatedAt, ['pending', 'partial']) +
       renderFlowStepper(r.status) +
@@ -5399,7 +5409,7 @@ async function loadAdminMapEvents() {
     return '<div class="card">' +
       '<div class="top"><div><span class="reqno">' + r.id + '</span><br><span class="who">' + r.reqBy + ' — ' + r.kitchen + '</span></div>' +
       '<span class="status ' + info.cls + '">' + info.label + '</span></div>' +
-      '<div class="meta">' + r.createdAt + '</div>' +
+      '<div class="meta">' + r.id + ' · ' + r.createdAt + '</div>' +
       '<table class="avail" style="margin:6px 0;table-layout:fixed;"><thead><tr><th style="width:280px;">Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th></tr></thead><tbody>' + r.items.map(function (it) { return '<tr><td>' + it.name + '</td><td>' + it.qty + '</td><td>' + it.unit + '</td></tr>'; }).join('') + '</tbody></table>' +
       '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;">' +
       '<select id="mapEventSel-' + idx + '" style="max-width:280px;">' + eventOptionsHtml + '</select>' +
@@ -5644,7 +5654,7 @@ async function loadTicketsList() {
   box.innerHTML = tickets.map(function (t, idx) {
     const rowId = 'ticketRow-' + idx;
     const rc = statusRowColors_(t.status);
-    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 14px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
+    return '<div onclick="toggleCompactRow(\'' + rowId + '\')" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border:2px solid ' + rc.border + ';border-radius:8px;margin-bottom:6px;cursor:pointer;background:' + rc.bg + ';">' +
       '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden;">' +
       '<span class="who" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:600;">' + t.name + '</span>' +
       '<span class="meta" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + t.contact + (t.department ? ' · ' + t.department : '') + '</span>' +
