@@ -1004,6 +1004,32 @@ const SUPABASE_URL = 'https://yspmmjbxszrymteupwrc.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlzcG1tamJ4c3pyeW10ZXVwd3JjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0ODYwMzcsImV4cCI6MjEwNjA2MjAzN30.UQGOijxEuvE49fznIN56H8vSc6Yo4f05-N6ol30SGZQ';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+/* ================= DIAGNOSTIC: on-screen error catcher ================= */
+/* Temporary — helps pin down the intermittent blank-screen-after-switching
+   bug. Shows any uncaught error or unhandled promise rejection as a
+   visible banner (top of screen) instead of only in the console, which
+   isn't reachable on a phone without a PC. Remove once the bug is found. */
+function showDiagError_(msg) {
+  let box = document.getElementById('diagErrorBox_');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'diagErrorBox_';
+    box.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#B04B4B;color:#fff;padding:12px 14px;font-size:12px;font-family:monospace;white-space:pre-wrap;word-break:break-word;max-height:40vh;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.4);';
+    document.body.appendChild(box);
+  }
+  const line = document.createElement('div');
+  line.style.cssText = 'border-top:1px solid rgba(255,255,255,0.3);padding-top:6px;margin-top:6px;';
+  line.textContent = new Date().toLocaleTimeString() + ' — ' + msg;
+  box.appendChild(line);
+}
+window.addEventListener('error', function (e) {
+  showDiagError_('JS ERROR: ' + e.message + ' (' + (e.filename || '').split('/').pop() + ':' + e.lineno + ')');
+});
+window.addEventListener('unhandledrejection', function (e) {
+  const reason = e.reason;
+  showDiagError_('UNHANDLED PROMISE: ' + (reason && reason.message ? reason.message : String(reason)));
+});
+
 /* Same placeholder-filled defaults Code.gs used to fall back on when a
    setting had never been saved yet. */
 const DEFAULT_SETTINGS_ = {
