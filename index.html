@@ -798,10 +798,12 @@
           <div class="f" id="adminStockPeriodToWrap" style="display:none;"><label>To</label><input type="date" id="adminStockPeriodTo"></div>
           <div><button class="btn small" onclick="loadAdminStock()">Apply</button></div>
         </div>
+        <div class="scroll-table-wrap">
         <table class="avail">
-          <thead><tr><th style="width:200px;">Item</th><th>Opening</th><th>Purchase</th><th>Used</th><th>Closing</th><th>Avg Price</th><th>Stock Value</th><th>Min Qty</th><th>Status</th></tr></thead>
+          <thead><tr><th style="width:200px;">Item</th><th>Opening</th><th>Purchase</th><th>Used</th><th>Closing</th><th>Avg Price</th><th>Stock Value</th><th style="width:100px;">Min Qty</th><th>Status</th></tr></thead>
           <tbody id="adminStockBody"><tr><td colspan="9" class="empty">Loading...</td></tr></tbody>
         </table>
+        </div>
       </div>
 
       <div class="subview" id="adm-dispatch">
@@ -1784,21 +1786,15 @@ const API_IMPL_ = {
     return { id: id, totalValue: totalValue };
   },
   getPurchaseBills: async function () {
-    const { data, error } = await sb.from('purchase_bills').select('*');
+    const { data, error } = await sb.from('purchase_bills').select('*').order('created_at', { ascending: false });
     throwIfErr_(error);
-    const rows = (data || []).map(function (r) {
+    return (data || []).map(function (r) {
       return {
         id: r.id, date: isoToDisplayDate_(r.date), vendorName: r.vendor_name, items: r.items || [],
         totalValue: r.total_value, createdBy: r.created_by, createdAt: isoToLocaleIN_(r.created_at),
         attachments: r.attachments || []
       };
     });
-    rows.sort(function (a, b) {
-      const ka = ddmmyyyySortKey_(a.date), kb = ddmmyyyySortKey_(b.date);
-      if (ka === kb) return 0;
-      return ka > kb ? -1 : 1;
-    });
-    return rows;
   },
 
   /* ---- purchase requests (Store -> Senior) ---- */
@@ -2998,6 +2994,12 @@ function addBillRow() {
 }
 for (let i = 0; i < 3; i++) addBillRow();
 
+document.getElementById('billItemsBody').addEventListener('input', function (e) {
+  if ((e.target.classList.contains('qty-input') || e.target.classList.contains('unit-input') || e.target.classList.contains('price-input')) && e.target.value.trim()) {
+    e.target.classList.remove('field-invalid');
+  }
+});
+
 function recalcBillRow(input) {
   const row = input.closest('tr');
   const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
@@ -3029,7 +3031,12 @@ async function submitBillClick() {
   const recordedBy = document.getElementById('billRecordedBy').value.trim();
   const banner = document.getElementById('billBanner');
 
-  const items = Array.prototype.slice.call(document.querySelectorAll('#billItemsBody tr')).map(function (tr) {
+  const rows = Array.prototype.slice.call(document.querySelectorAll('#billItemsBody tr'));
+  rows.forEach(function (tr) {
+    Array.prototype.slice.call(tr.querySelectorAll('.field-invalid')).forEach(function (el) { el.classList.remove('field-invalid'); });
+  });
+
+  const items = rows.map(function (tr) {
     const nameInput = tr.querySelector('.item-ac-input');
     const descInput = tr.querySelector('.item-desc-input');
     const qtyInput = tr.querySelector('.qty-input');
@@ -3040,7 +3047,8 @@ async function submitBillClick() {
       description: descInput ? descInput.value.trim() : '',
       qty: qtyInput.value.trim(),
       unit: unitInput.value.trim(),
-      pricePerUnit: priceInput.value.trim()
+      pricePerUnit: priceInput.value.trim(),
+      _tr: tr
     };
   }).filter(function (it) { return it.name; });
 
@@ -3054,6 +3062,19 @@ async function submitBillClick() {
     banner.className = 'banner show err';
     return;
   }
+
+  let hasInvalid = false;
+  items.forEach(function (it) {
+    if (!it.qty) { it._tr.querySelector('.qty-input').classList.add('field-invalid'); hasInvalid = true; }
+    if (!it.unit) { it._tr.querySelector('.unit-input').classList.add('field-invalid'); hasInvalid = true; }
+    if (!it.pricePerUnit) { it._tr.querySelector('.price-input').classList.add('field-invalid'); hasInvalid = true; }
+  });
+  if (hasInvalid) {
+    banner.textContent = 'Please fill Qty, Unit, and Price for every item (highlighted in red).';
+    banner.className = 'banner show err';
+    return;
+  }
+
   const invalidBillItems = findInvalidItemNames_(items);
   if (invalidBillItems.length) {
     banner.textContent = 'Not in the raw material list: ' + invalidBillItems.join(', ') + ' — pick from the dropdown, or use "+ Add a new raw material to the list" first.';
@@ -3082,7 +3103,7 @@ async function submitBillClick() {
       attachments.push({ filename: file.name, mimeType: file.type || 'application/octet-stream', base64: base64 });
     }
 
-    await gsRun('submitPurchaseBill', { date: date, vendorName: vendorName, items: items, createdBy: recordedBy, attachments: attachments });
+    await gsRun('submitPurchaseBill', { date: date, vendorName: vendorName, items: items.map(function (it) { return { name: it.name, description: it.description, qty: it.qty, unit: it.unit, pricePerUnit: it.pricePerUnit }; }), createdBy: recordedBy, attachments: attachments });
     banner.textContent = 'Bill recorded and stock updated.';
     banner.className = 'banner show ok';
     document.getElementById('billVendor').value = '';
