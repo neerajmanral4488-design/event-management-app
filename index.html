@@ -2824,6 +2824,13 @@ async function submitEventClick() {
   if (items.length === 0) {
     showBanner('eventBanner', 'Please add at least one item.', 'err'); return;
   }
+  const incompleteItems = items.filter(function (it) {
+    return !it.qty || !it.unit || !it.chefs || !it.chefs.length;
+  });
+  if (incompleteItems.length) {
+    showBanner('eventBanner', 'Please fill Qty, Unit, and at least one Department for: ' + incompleteItems.map(function (it) { return it.name; }).join(', '), 'err');
+    return;
+  }
 
   const btn = document.getElementById('evSendBtn');
   btn.disabled = true;
