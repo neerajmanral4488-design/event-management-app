@@ -1020,6 +1020,38 @@ window.addEventListener('unhandledrejection', function (e) {
   showDiagError_('UNHANDLED PROMISE: ' + (reason && reason.message ? reason.message : String(reason)));
 });
 
+/* ================= DIAGNOSTIC: blank-screen state probe ================= */
+/* Temporary. Every 1.5s this checks whether ANY screen is actually
+   visible. If nothing is, it reports exactly which containers exist and
+   what state they're in — that tells us precisely why the page went
+   blank, which the error catcher above can't (a blank screen with no
+   thrown error produces no console output at all). */
+function diagSnapshot_() {
+  const role = document.getElementById('roleScreen');
+  const gate = document.getElementById('pwGate');
+  const depts = Array.prototype.slice.call(document.querySelectorAll('.dept-view'));
+  const activeDepts = depts.filter(function (d) { return d.classList.contains('active'); });
+
+  const roleVisible = role && !role.classList.contains('hidden');
+  const gateVisible = gate && !gate.classList.contains('hidden');
+
+  if (!roleVisible && !gateVisible && !activeDepts.length) {
+    showDiagError_(
+      'BLANK STATE:\n' +
+      '  roleScreen hidden=' + (role ? role.classList.contains('hidden') : 'MISSING') + '\n' +
+      '  pwGate hidden=' + (gate ? gate.classList.contains('hidden') : 'MISSING') + '\n' +
+      '  dept-views total=' + depts.length + ', active=' + activeDepts.length + '\n' +
+      '  inDeptView_=' + (typeof inDeptView_ !== 'undefined' ? inDeptView_ : 'undef') + '\n' +
+      '  lastEnterDeptKey=' + (typeof lastEnterDeptKey !== 'undefined' ? lastEnterDeptKey : 'undef') + '\n' +
+      '  pendingGsRun=' + (typeof pendingGsRunCount_ !== 'undefined' ? pendingGsRunCount_ : 'undef')
+    );
+    // Recover rather than leaving the person stranded — the report above
+    // stays on screen so we can still see what happened.
+    if (role) role.classList.remove('hidden');
+  }
+}
+setInterval(diagSnapshot_, 1500);
+
 /* Same placeholder-filled defaults Code.gs used to fall back on when a
    setting had never been saved yet. */
 const DEFAULT_SETTINGS_ = {
@@ -2477,19 +2509,6 @@ function enterDept(deptKey) {
     if (deptKey === 'production') { switchProdTab('ordering'); loadEventOptionsForProduction(); loadMyProductionRequests(); loadDepartmentsListGlobal(); loadPendingTasksForProduction(); closeNewProdRequestForm(); }
     if (deptKey === 'dispatch') loadDispatchByEvent();
     if (deptKey === 'dev') loadDevSettings();
-
-    // Safety net: if for any reason neither a department view nor the role
-    // screen ends up visible, the person is left staring at a blank page
-    // with no way back except a manual reload. Catch that and recover.
-    setTimeout(function () {
-      const anyDeptVisible = document.querySelector('.dept-view.active');
-      const roleVisible = !document.getElementById('roleScreen').classList.contains('hidden');
-      const gateVisible = !document.getElementById('pwGate').classList.contains('hidden');
-      if (!anyDeptVisible && !roleVisible && !gateVisible) {
-        console.warn('Blank state detected after entering "' + deptKey + '" — recovering to role screen.');
-        showRoleScreen();
-      }
-    }, 400);
   } catch (e) {
     console.error('enterDept failed, returning to role screen:', e);
     showRoleScreen();
