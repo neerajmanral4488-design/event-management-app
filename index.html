@@ -98,7 +98,7 @@
   .card ul{margin:8px 0;padding-left:18px;font-size:13px;}
   .card .actions{display:flex;gap:8px;margin-top:10px;}
   .empty{text-align:center;color:var(--ink-soft);font-size:13px;padding:24px 0;}
-  h3.sec{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:12.5px;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-soft);margin:22px 0 10px;padding:0 0 6px;border-bottom:1px solid var(--border);}
+  h3.sec{font-family:'Space Grotesk',sans-serif;font-size:14.5px;color:#F5F7FA;margin:26px 0 14px;letter-spacing:-0.01em;background:linear-gradient(135deg,#5B6B7D 0%,#7C8CA0 100%);border-left:4px solid #3E4C5E;padding:11px 16px;border-radius:8px;}
 
   .role-screen{padding:40px 30px;text-align:center;}
   .role-screen h2{font-family:'Space Grotesk',sans-serif;font-size:22px;color:var(--navy);margin:0 0 6px;letter-spacing:-0.01em;}
@@ -322,7 +322,6 @@
       <div class="f"><label>Description (optional)</label><textarea id="evDescription" rows="3" placeholder="Any additional details about this event"></textarea></div>
 
       <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-soft);font-weight:600;margin:14px 0 6px;">Menu — Department Allocation</label>
-      <p class="meta" style="margin:-2px 0 8px;">Some menu items need more than one department (e.g. a Sandwich needs Bread from one and Filling from another) — select all that apply.</p>
       <div class="items-table-scroll event-items-scroll">
       <table class="items">
         <thead><tr><th style="min-width:220px;">Menu Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th style="width:180px;">Departments</th><th style="width:130px;">Description</th><th style="width:30px;"></th></tr></thead>
@@ -445,7 +444,6 @@
           <span>Today's Production — All Departments</span>
           <button class="btn small" onclick="downloadProdListCSV()">⬇ Excel Download</button>
         </h3>
-        <p class="meta" style="margin-bottom:12px;">What needs to be made, pulled from each event's Menu and Dispatch Date — across every department.</p>
         <div class="row2" style="max-width:700px;align-items:flex-end;">
           <div class="f">
             <label>Date Range</label>
@@ -474,7 +472,6 @@
           <span>Your Department's Production List</span>
           <button class="btn small" onclick="downloadDeptProdListCSV()">⬇ Excel Download</button>
         </h3>
-        <p class="meta" style="margin-bottom:12px;">Select your department to see what you need to make. Mark an item ready and attach a photo once it's done.</p>
         <div class="row2" style="max-width:900px;align-items:flex-end;">
           <div class="f">
             <label>Department</label>
@@ -504,7 +501,6 @@
   <div class="dept-view" id="dept-prodhead">
     <div class="view active">
       <div id="prodHeadBanner" class="banner" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:150;max-width:min(90%,600px);box-shadow:0 4px 16px rgba(11,56,102,0.2);"></div>
-      <p class="meta" style="margin-bottom:14px;">Requests must be approved here before Purchase can see them.</p>
       <div id="prodHeadNewDataBanner" class="hidden" style="background:var(--blue-pale);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:14px;cursor:pointer;font-size:13px;font-weight:600;color:var(--blue);" onclick="refreshProdHeadFromBanner_()">🔔 New request(s) available — click to refresh</div>
       <h3 class="sec" style="margin-top:0;display:flex;align-items:center;justify-content:space-between;">
         <span>Pending Your Approval</span>
@@ -512,7 +508,6 @@
       </h3>
       <div id="prodHeadPendingList"><div class="empty">Loading...</div></div>
       <h3 class="sec">Forwarded to Purchase — Still Editable</h3>
-      <p class="meta" style="margin-bottom:12px;">You can still adjust these until Purchase starts issuing them.</p>
       <div id="prodHeadForwardedList"><div class="empty">—</div></div>
       <h3 class="sec">History</h3>
       <div id="prodHeadHistoryList"><div class="empty">—</div></div>
@@ -583,7 +578,6 @@
 
   <!-- ===== PURCHASE REQUEST (TO SENIOR) VIEW ===== -->
   <div class="view" id="view-porequest">
-    <p class="meta" style="margin-bottom:12px;">If something isn't in stock and needs to be purchased, send a request to the Senior/Approver here. Once approved, you'll receive an email — then purchase it and add it via the Store tab.</p>
     <div class="row2">
       <div class="f"><label>Your Name</label><input type="text" id="poBy" placeholder="Requested by"></div>
       <div class="f"><label>Your Email (approval will be sent here)</label><input type="email" id="poEmail" placeholder="you@company.com"></div>
@@ -623,7 +617,6 @@
   <!-- ===== PURCHASE BILLS VIEW ===== -->
   <div class="view" id="view-bills">
     <h3 class="sec" style="margin-top:0;">Record Purchase Bill</h3>
-    <p class="meta" style="margin-bottom:12px;">Record every item on the bill at once — this also updates Store's Purchase column for each item.</p>
     <div class="row2">
       <div class="f"><label>Bill Date</label><input type="date" id="billDate"></div>
       <div class="f">
@@ -669,7 +662,6 @@
         <button class="btn small" onclick="downloadBillsCSV()">⬇ Excel Download</button>
       </span>
     </h3>
-    <p class="meta" style="margin-bottom:12px;">Most recent first — click a bill to see item-wise detail. Filter by date to narrow what's shown or downloaded.</p>
     <div class="row2" style="max-width:460px;">
       <div class="f"><label>From Date</label><input type="date" id="billsFromDate" onchange="filterBillsList()"></div>
       <div class="f"><label>To Date</label><input type="date" id="billsToDate" onchange="filterBillsList()"></div>
@@ -681,7 +673,6 @@
   <!-- ===== DISPATCH ===== -->
   <div class="dept-view" id="dept-dispatch">
     <div class="view active">
-      <p class="meta" style="margin-bottom:14px;">Read-only — filled in by separate dispatch/return forms.</p>
 
       <div class="tabs" style="margin-bottom:20px;border-radius:6px;overflow:hidden;border:1px solid var(--border);">
         <a class="tab" id="dispatchFormLink" href="https://script.google.com/a/macros/vama.app/s/AKfycbxUgMuOiL0uwnSB9KI8oHrS1OTsFGnuOpV4uOuFcyHnivX7ZVO7bnkXG_xX7h0NIGhSSA/exec" target="_blank" rel="noopener" style="text-decoration:none;">📋 Dispatch Form</a>
@@ -695,7 +686,6 @@
           <button class="btn small" onclick="loadDispatchByEvent()">Refresh</button>
         </div>
       </h3>
-      <p class="meta" style="margin-bottom:12px;">Click an event to see Finished Goods and Fixed Assets dispatched for it — dispatched and returned quantities are matched up automatically.</p>
       <div class="f" style="max-width:320px;">
         <label>Search by Event</label>
         <input type="text" id="dispatchSearch" placeholder="e.g. Hyatt Regency" oninput="filterDispatchByEvent()">
@@ -765,7 +755,6 @@
         <div id="adminPurchaseRequestsBanner" class="banner" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:150;max-width:min(90%,600px);box-shadow:0 4px 16px rgba(11,56,102,0.2);"></div>
         <div id="adminPurchaseRequestsNewDataBanner" class="hidden" style="background:var(--blue-pale);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:14px;cursor:pointer;font-size:13px;font-weight:600;color:var(--blue);" onclick="refreshAdminPurchaseRequestsFromBanner_()">🔔 New request(s) available — click to refresh</div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-          <p class="meta" style="margin:0;">Approve or reject pending requests below.</p>
           <button class="btn small" onclick="loadDashboard()">Refresh</button>
         </div>
         <div id="dashPoList"><div class="empty">Loading...</div></div>
@@ -773,7 +762,6 @@
 
       <div class="subview" id="adm-mapevents">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-          <p class="meta" style="margin:0;">Requests submitted without picking an event ("standalone") — link each one to the right event here.</p>
           <button class="btn small" onclick="loadAdminMapEvents()">Refresh</button>
         </div>
         <div id="adminMapEventsList"><div class="empty">Loading...</div></div>
@@ -790,7 +778,6 @@
       </div>
 
       <div class="subview" id="adm-stock">
-        <p class="meta" style="margin-bottom:12px;">Opening + Purchase − Used = Closing (read-only)</p>
         <div class="row2" style="max-width:700px;align-items:flex-end;">
           <div class="f">
             <label>Period</label>
@@ -821,7 +808,6 @@
             <button class="btn small" onclick="loadDispatchByEvent('adminDispatchByEventList')">Refresh</button>
           </div>
         </h3>
-        <p class="meta" style="margin-bottom:12px;">Click an event to see Finished Goods and Fixed Assets dispatched for it — dispatched and returned quantities are matched up automatically.</p>
         <div class="f" style="max-width:320px;">
           <label>Search by Event</label>
           <input type="text" id="adminDispatchSearch" placeholder="e.g. Hyatt Regency" oninput="filterDispatchByEvent('adminDispatchSearch','adminDispatchByEventList')">
@@ -837,7 +823,6 @@
       </div>
 
       <div class="subview" id="adm-departments">
-        <p class="meta" style="margin-bottom:14px;">Feeds the Kitchen dropdown in Event Creation and Production.</p>
         <div class="row2" style="align-items:flex-end;">
           <div class="f"><label>New Department / Role Name</label><input type="text" id="admNewDeptName" placeholder="e.g. Tandoor"></div>
           <div><button class="btn primary" onclick="addAdmDeptClick()">Add Department</button></div>
@@ -852,7 +837,6 @@
   <!-- ===== DEVELOPER ===== -->
   <div class="dept-view" id="dept-dev">
     <div class="view active">
-      <p class="meta" style="margin-bottom:16px;">Changes apply the next time a page loads.</p>
       <div id="devBanner" class="banner" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:150;max-width:min(90%,600px);box-shadow:0 4px 16px rgba(11,56,102,0.2);"></div>
 
       <div class="subtabs">
@@ -875,7 +859,6 @@
       </div>
 
       <div class="subview" id="dev-departments">
-        <p class="meta" style="margin-bottom:14px;">Feeds the Kitchen dropdown in Event Creation and Production.</p>
         <div class="row2" style="align-items:flex-end;">
           <div class="f"><label>New Department Name</label><input type="text" id="newDeptName" placeholder="e.g. Tandoor"></div>
           <div><button class="btn primary" onclick="addDeptClick()">Add Department</button></div>
@@ -886,7 +869,6 @@
       </div>
 
       <div class="subview" id="dev-vendors">
-        <p class="meta" style="margin-bottom:14px;">This list feeds the Vendor dropdown in Purchase Bills.</p>
         <div class="row2" style="align-items:flex-end;">
           <div class="f"><label>New Vendor Name</label><input type="text" id="newVendorMgmtName" placeholder="e.g. Sharma Traders"></div>
           <div><button class="btn primary" onclick="addVendorMgmtClick()">Add Vendor</button></div>
@@ -897,7 +879,6 @@
       </div>
 
       <div class="subview" id="dev-cards">
-        <p class="meta" style="margin-bottom:14px;">Titles and descriptions shown on the home page cards.</p>
         <div class="row2">
           <div class="f"><label>Event Creation — Title</label><input type="text" id="set_card_event_title"></div>
           <div class="f"><label>Event Creation — Description</label><input type="text" id="set_card_event_desc"></div>
@@ -922,7 +903,6 @@
       </div>
 
       <div class="subview" id="dev-emails">
-        <p class="meta" style="margin-bottom:14px;">Use <code>{{id}}</code>, <code>{{items}}</code>, <code>{{reqBy}}</code>, <code>{{kitchen}}</code>, <code>{{eventLine}}</code>, <code>{{noteLine}}</code> as placeholders — they get filled in automatically when the email is sent.</p>
 
         <h3 class="sec" style="margin-top:0;">Production Request → Purchase</h3>
         <div class="f"><label>Subject</label><input type="text" id="set_email_prod_request_subject"></div>
@@ -969,12 +949,10 @@
             <option value="no">Hide</option>
           </select>
         </div>
-        <p class="meta" style="margin-bottom:14px;">Per-item thresholds are still set in the Store tab.</p>
         <button class="btn primary" onclick="saveDevSection(['low_stock_banner_enabled'])">Save</button>
       </div>
 
       <div class="subview" id="dev-sheet">
-        <p class="meta" style="margin-bottom:14px;">The app reads and writes all data from this Google Sheet. Changing this points the entire app at a different Sheet — use with care.</p>
         <div class="f" style="max-width:460px;"><label>Current Sheet ID</label><input type="text" id="set_sheet_id" placeholder="Default Sheet is in use"></div>
         <button class="btn primary" onclick="saveSheetId()">Switch Sheet</button>
         <button class="btn" onclick="resetSheetId()" style="margin-left:8px;">Reset to Default</button>
