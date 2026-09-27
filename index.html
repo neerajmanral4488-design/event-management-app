@@ -718,6 +718,7 @@
         <div class="subtab" data-adm="stock" onclick="switchAdminTab('stock')">Stock</div>
         <div class="subtab" data-adm="dispatch" onclick="switchAdminTab('dispatch')">Dispatch</div>
         <div class="subtab" data-adm="passwords" onclick="switchAdminTab('passwords')">Passwords</div>
+        <div class="subtab" data-adm="departments" onclick="switchAdminTab('departments')">Departments</div>
       </div>
 
       <div class="subview active" id="adm-dashboard">
@@ -838,6 +839,17 @@
           <button class="btn small" onclick="loadPasswordManager()">Refresh</button>
         </div>
         <div id="pwManageList"><div class="empty">Loading...</div></div>
+      </div>
+
+      <div class="subview" id="adm-departments">
+        <p class="meta" style="margin-bottom:14px;">Department / Role names — these feed the Chef/Kitchen dropdown in Event Creation and Production. Keep names consistent everywhere.</p>
+        <div class="row2" style="align-items:flex-end;">
+          <div class="f"><label>New Department / Role Name</label><input type="text" id="admNewDeptName" placeholder="e.g. Tandoor"></div>
+          <div><button class="btn primary" onclick="addAdmDeptClick()">Add Department</button></div>
+        </div>
+        <div id="admDeptMgmtBanner" class="banner" style="margin-bottom:12px;"></div>
+        <h3 class="sec">Current Departments / Roles</h3>
+        <div id="admDeptMgmtList"><div class="empty">Loading...</div></div>
       </div>
     </div>
   </div>
@@ -4980,6 +4992,49 @@ function switchAdminTab(tab) {
   if (tab === 'stock') loadAdminStock();
   if (tab === 'dispatch') loadAdminDispatch();
   if (tab === 'passwords') loadPasswordManager();
+  if (tab === 'departments') loadAdmDeptManagement();
+}
+
+async function loadAdmDeptManagement() {
+  const box = document.getElementById('admDeptMgmtList');
+  box.innerHTML = '<div class="empty">Loading...</div>';
+  let depts = [];
+  try { depts = await gsRun('getDepartmentsWithRows'); } catch (e) {}
+  if (!depts) depts = [];
+  if (!depts.length) { box.innerHTML = '<div class="empty">No departments added yet.</div>'; return; }
+
+  box.innerHTML = depts.map(function (d) {
+    return '<div class="pw-row">' +
+      '<div class="dept-name" style="width:auto;flex:1;">' + d.name + '</div>' +
+      '<button class="rm-btn" onclick="removeAdmDeptClick(' + d.rowIndex + ')">✕</button>' +
+      '</div>';
+  }).join('');
+}
+
+async function addAdmDeptClick() {
+  const input = document.getElementById('admNewDeptName');
+  const name = input.value.trim();
+  const banner = document.getElementById('admDeptMgmtBanner');
+  if (!name) return;
+  try {
+    await gsRun('addDepartmentName', name);
+    input.value = '';
+    banner.textContent = 'Added.';
+    banner.className = 'banner show ok';
+    loadAdmDeptManagement();
+    loadDepartmentsListGlobal();
+  } catch (e) {
+    banner.textContent = 'Could not add. Please try again.';
+    banner.className = 'banner show err';
+  }
+}
+
+async function removeAdmDeptClick(rowIndex) {
+  try {
+    await gsRun('removeDepartmentByRow', rowIndex);
+    loadAdmDeptManagement();
+    loadDepartmentsListGlobal();
+  } catch (e) {}
 }
 
 /* ---------- boss dashboard ---------- */
