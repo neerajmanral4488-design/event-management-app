@@ -1094,6 +1094,14 @@ function rowToProdObj_impl(r) {
   };
 }
 
+function rowToPoObj_impl(r) {
+  return {
+    id: r.id, createdAt: isoToLocaleIN_(r.created_at), reqBy: r.req_by, myEmail: r.my_email,
+    seniorEmail: r.senior_email, note: r.note, items: r.items || [], status: r.status,
+    updatedAt: isoToLocaleIN_(r.updated_at)
+  };
+}
+
 /* ---- Stock / FIFO internals (mirror Code.gs's addLedgerEntry_, addStockBatch_,
    ensureOpeningBatchExists_, consumeStockFifo_, addUsedToStock_) ---- */
 
@@ -1211,6 +1219,41 @@ async function getAllStockValuations_impl() {
     result[key] = { avgPrice: m.totalQty > 0 ? (m.totalValue / m.totalQty) : 0, stockValue: m.totalValue };
   });
   return result;
+}
+
+async function addStockItemImpl_(name, unit, qty, price) {
+  if (parseFloat(qty) > 0) await addStockBatch_impl(name, unit, parseFloat(qty), parseFloat(price) || 0, 'Purchase');
+  const { data: row } = await sb.from('stock').select('id,purchase').ilike('name', name).maybeSingle();
+  if (row) {
+    const newPurchased = (parseFloat(row.purchase) || 0) + (parseFloat(qty) || 0);
+    await sb.from('stock').update({ purchase: newPurchased }).eq('id', row.id);
+    logActivity_('Store', actorEmail_(), 'Purchase Entry Add Kiya', name + ': +' + qty + ' ' + unit + (price ? ' @ ₹' + price : ''));
+  } else {
+    await sb.from('stock').insert({ name: name, unit: unit || 'unit', opening: 0, purchase: qty, used: 0 });
+    logActivity_('Store', actorEmail_(), 'Naya Item Store Mein Add Kiya', name + ': ' + qty + ' ' + unit + (price ? ' @ ₹' + price : ''));
+  }
+}
+
+function ddmmyyyySortKey_(s) {
+  const m = String(s || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (!m) return s || '';
+  return m[3] + m[2].padStart(2, '0') + m[1].padStart(2, '0');
+}
+
+/* Uploads a base64 file (from a <input type=file> read client-side) to a
+   Supabase Storage bucket and returns its public URL — this replaces
+   Google Drive, which the old backend used for bill scans and production
+   photos. */
+async function uploadFileToStorage_(bucket, filename, base64, mimeType) {
+  const binaryStr = atob(base64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+  const safeName = String(filename || 'file').replace(/[^a-zA-Z0-9.\-_]/g, '_');
+  const path = Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + safeName;
+  const { error } = await sb.storage.from(bucket).upload(path, bytes, { contentType: mimeType || 'application/octet-stream' });
+  throwIfErr_(error);
+  const { data: urlData } = sb.storage.from(bucket).getPublicUrl(path);
+  return { name: filename, url: urlData.publicUrl, path: path };
 }
 
 async function logActivity_(dept, user, action, details) {
@@ -1709,6 +1752,280 @@ const API_IMPL_ = {
 
     logActivity_('Purchase', actorEmail_(), 'Leftover Material Returned', requestId + ' — ' + it.name + ': ' + qty + ' ' + it.unit + (remark ? ' (' + remark + ')' : ''));
     return { returnedQty: alreadyReturned + qty };
+  },
+
+  /* ---- purchase bills ---- */
+  submitPurchaseBill: async function (data) {
+    data.vendorName = toTitleCaseClient_(data.vendorName);
+    data.createdBy = toTitleCaseClient_(data.createdBy);
+    (data.items || []).forEach(function (it) { it.name = toTitleCaseClient_(it.name); });
+
+    const attachments = [];
+    for (let i = 0; i < (data.attachments || []).length; i++) {
+      const f = data.attachments[i];
+      const uploaded = await uploadFileToStorage_('bill-attachments', f.filename, f.base64, f.mimeType);
+      attachments.push({ name: uploaded.name, url: uploaded.url });
+    }
+
+    const id = genId_('BILL');
+    let totalValue = 0;
+    const items = data.items.map(function (it) {
+      const qty = parseFloat(it.qty) || 0;
+      const price = parseFloat(it.pricePerUnit) || 0;
+      const lineTotal = Math.round(qty * price * 100) / 100;
+      totalValue += lineTotal;
+      return { name: it.name, description: it.description || '', qty: it.qty, unit: it.unit, pricePerUnit: it.pricePerUnit, lineTotal: lineTotal };
+    });
+    totalValue = Math.round(totalValue * 100) / 100;
+
+    const { error } = await sb.from('purchase_bills').insert({
+      id: id, date: data.date || null, vendor_name: data.vendorName, items: items,
+      total_value: totalValue, created_by: data.createdBy, attachments: attachments
+    });
+    throwIfErr_(error);
+
+    for (let i = 0; i < items.length; i++) {
+      await addStockItemImpl_(items[i].name, items[i].unit, items[i].qty, items[i].pricePerUnit);
+    }
+
+    logActivity_('Store', data.createdBy, 'Purchase Bill Recorded', id + ' — ' + data.vendorName + ' — ' + items.length + ' item(s), total ₹' + totalValue);
+    return { id: id, totalValue: totalValue };
+  },
+  getPurchaseBills: async function () {
+    const { data, error } = await sb.from('purchase_bills').select('*');
+    throwIfErr_(error);
+    const rows = (data || []).map(function (r) {
+      return {
+        id: r.id, date: isoToDisplayDate_(r.date), vendorName: r.vendor_name, items: r.items || [],
+        totalValue: r.total_value, createdBy: r.created_by, createdAt: isoToLocaleIN_(r.created_at),
+        attachments: r.attachments || []
+      };
+    });
+    rows.sort(function (a, b) {
+      const ka = ddmmyyyySortKey_(a.date), kb = ddmmyyyySortKey_(b.date);
+      if (ka === kb) return 0;
+      return ka > kb ? -1 : 1;
+    });
+    return rows;
+  },
+
+  /* ---- purchase requests (Store -> Senior) ---- */
+  submitPurchaseRequest: async function (data) {
+    data.reqBy = toTitleCaseClient_(data.reqBy);
+    (data.items || []).forEach(function (it) { it.name = toTitleCaseClient_(it.name); });
+    const id = genId_('PO');
+    const { error } = await sb.from('purchase_requests').insert({
+      id: id, req_by: data.reqBy, my_email: data.myEmail, senior_email: data.seniorEmail,
+      note: data.note || '', items: data.items, status: 'pending'
+    });
+    throwIfErr_(error);
+    logActivity_('Store', data.reqBy + ' (' + data.myEmail + ')', 'Purchase Request Bheji (Senior ko)', id + ' — ' + data.items.length + ' item(s) → ' + data.seniorEmail);
+    return { id: id };
+  },
+  getMyPurchaseRequests: async function (email) {
+    const { data, error } = await sb.from('purchase_requests').select('*').eq('my_email', email).order('created_at', { ascending: false });
+    throwIfErr_(error);
+    return (data || []).map(rowToPoObj_impl);
+  },
+  getAllPurchaseRequests: async function () {
+    const { data, error } = await sb.from('purchase_requests').select('*').order('created_at', { ascending: false });
+    throwIfErr_(error);
+    return (data || []).map(rowToPoObj_impl);
+  },
+  editPurchaseRequest: async function (id, items, note) {
+    (items || []).forEach(function (it) { it.name = toTitleCaseClient_(it.name); });
+    const { data: existing } = await sb.from('purchase_requests').select('status').eq('id', id).maybeSingle();
+    if (!existing) throw new Error('Request not mili.');
+    if (existing.status !== 'pending') throw new Error('This request has already been decided and can no longer be edited.');
+    const { error } = await sb.from('purchase_requests').update({ note: note || '', items: items }).eq('id', id);
+    throwIfErr_(error);
+    logActivity_('Store', actorEmail_(), 'Purchase Request Edited (before decision)', id);
+    return true;
+  },
+  adminDecidePurchaseRequest: async function (id, status) {
+    const { error } = await sb.from('purchase_requests').update({ status: status, updated_at: new Date().toISOString() }).eq('id', id);
+    throwIfErr_(error);
+    logActivity_('Admin', actorEmail_(), 'Purchase Request ' + status, id);
+    return { status: status };
+  },
+
+  /* ---- dashboard / activity / tickets / passwords ---- */
+  getDashboardData: async function () {
+    const production = await API_IMPL_.getAllProductionRequests();
+    const purchase = await API_IMPL_.getAllPurchaseRequests();
+    return { production: production, purchase: purchase };
+  },
+  getActivityLog: async function () {
+    const { data, error } = await sb.from('activity_log').select('*').order('ts', { ascending: false }).limit(200);
+    throwIfErr_(error);
+    return (data || []).map(function (r) { return { ts: isoToLocaleIN_(r.ts), dept: r.department, user: r.user_name, action: r.action, details: r.details }; });
+  },
+  getPasswordsForAdmin: async function () {
+    const { data, error } = await sb.rpc('get_passwords_for_admin');
+    throwIfErr_(error);
+    return (data || []).map(function (r) { return { dept: r.department, password: r.password, rowIndex: r.id }; });
+  },
+  setPasswordByRow: async function (rowIndex, newPassword) {
+    const { error } = await sb.rpc('set_password_by_id', { p_id: rowIndex, p_new_password: newPassword });
+    throwIfErr_(error);
+    logActivity_('Admin', actorEmail_(), 'Password Badla', 'Row ' + rowIndex);
+    return true;
+  },
+  getTickets: async function () {
+    const { data, error } = await sb.from('tickets').select('*').order('ts', { ascending: false });
+    throwIfErr_(error);
+    return (data || []).map(function (r) {
+      return { rowIndex: r.id, ts: isoToLocaleIN_(r.ts), name: r.name, contact: r.contact, department: r.department, description: r.description, status: r.status, resolvedAt: isoToLocaleIN_(r.resolved_at) || '' };
+    });
+  },
+  submitTicket: async function (data) {
+    const { error } = await sb.from('tickets').insert({ name: data.name, contact: data.contact, department: data.department || '', description: data.description, status: 'open' });
+    throwIfErr_(error);
+    logActivity_('Support', data.name + ' (' + data.contact + ')', 'Ticket Raised', String(data.description).substring(0, 80));
+    return true;
+  },
+  setTicketStatus: async function (rowIndex, status) {
+    const updates = { status: status };
+    if (status === 'resolved') updates.resolved_at = new Date().toISOString();
+    const { error } = await sb.from('tickets').update(updates).eq('id', rowIndex);
+    throwIfErr_(error);
+    logActivity_('Developer', actorEmail_(), 'Ticket Status Changed: ' + status, 'Row ' + rowIndex);
+    return true;
+  },
+  /* These two are no-ops now — "switch backend Sheet" made no sense once
+     there is no Sheet, but the Developer tab that calls them stays
+     harmless rather than erroring. */
+  getSheetIdOverride: async function () { return ''; },
+  setSheetIdOverride: async function () { return true; },
+
+  /* ---- production completions (mark ready + photos) ---- */
+  getProductionCompletions: async function () {
+    const { data, error } = await sb.from('production_completions').select('*');
+    throwIfErr_(error);
+    return (data || []).map(function (r) {
+      return { eventId: r.event_id, itemName: r.item_name, department: r.department, completedBy: r.completed_by, completedAt: isoToLocaleIN_(r.completed_at), photoIds: r.photo_urls || [] };
+    });
+  },
+  markProductionItemComplete: async function (eventId, itemName, department, completedBy, newPhotos) {
+    const { data: existing } = await sb.from('production_completions').select('*').eq('event_id', eventId).eq('item_name', itemName).eq('department', department).maybeSingle();
+    const existingUrls = existing ? (existing.photo_urls || []) : [];
+    const room = Math.max(0, 4 - existingUrls.length);
+    const toUpload = (newPhotos || []).slice(0, room);
+    const uploadedUrls = [];
+    for (let i = 0; i < toUpload.length; i++) {
+      const uploaded = await uploadFileToStorage_('production-photos', toUpload[i].filename, toUpload[i].base64, toUpload[i].mimeType);
+      uploadedUrls.push(uploaded.url);
+    }
+    const allUrls = existingUrls.concat(uploadedUrls).slice(0, 4);
+    const completedAtIso = new Date().toISOString();
+    const completedAt = new Date(completedAtIso).toLocaleString('en-IN');
+
+    if (existing) {
+      await sb.from('production_completions').update({ completed_by: completedBy, completed_at: completedAtIso, photo_urls: allUrls }).eq('id', existing.id);
+      logActivity_('Production', completedBy, 'Menu Item Marked Ready (updated)', itemName + ' — ' + department);
+    } else {
+      await sb.from('production_completions').insert({ event_id: eventId, item_name: itemName, department: department, completed_by: completedBy, completed_at: completedAtIso, photo_urls: allUrls });
+      logActivity_('Production', completedBy, 'Menu Item Marked Ready', itemName + ' — ' + department);
+    }
+    return { photoIds: allUrls, completedBy: completedBy, completedAt: completedAt };
+  },
+  unmarkProductionItemComplete: async function (eventId, itemName, department) {
+    const { error } = await sb.from('production_completions').delete().eq('event_id', eventId).eq('item_name', itemName).eq('department', department);
+    throwIfErr_(error);
+    logActivity_('Production', actorEmail_(), 'Menu Item Unmarked', itemName + ' — ' + department);
+    return true;
+  },
+  removeProductionPhoto: async function (eventId, itemName, department, photoId) {
+    const { data: existing } = await sb.from('production_completions').select('*').eq('event_id', eventId).eq('item_name', itemName).eq('department', department).maybeSingle();
+    if (!existing) throw new Error('Record not found.');
+    const ids = (existing.photo_urls || []).filter(function (id) { return id !== photoId; });
+    await sb.from('production_completions').update({ photo_urls: ids }).eq('id', existing.id);
+    logActivity_('Production', actorEmail_(), 'Photo Removed', itemName + ' — ' + department);
+    return { photoIds: ids };
+  },
+
+  /* ---- dispatch (read-only; populated once a dispatch/return form is
+     wired to write into delivery_challan_data / goods_return_data —
+     empty until then, which is expected, not a bug) ---- */
+  getDeliveryChallans: async function () {
+    const { data, error } = await sb.from('delivery_challan_data').select('*').order('ts', { ascending: false });
+    throwIfErr_(error);
+    return (data || []).map(function (r) {
+      return {
+        timestamp: isoToLocaleIN_(r.ts), challanNo: r.challan_no, date: isoToLocaleIN_(r.date), dispatchedBy: r.dispatched_by,
+        department: r.department, event: r.event, dispatchedTo: r.dispatched_to, category: r.category,
+        itemName: r.item_name, qty: r.qty, unit: r.unit, vehicleNo: r.vehicle_no,
+        returnQty: r.return_qty || 0, damaged: r.damaged || 0, missing: r.missing || 0, returnStatus: r.return_status || ''
+      };
+    });
+  },
+  getGoodsReturns: async function () {
+    const { data, error } = await sb.from('goods_return_data').select('*').order('ts', { ascending: false });
+    throwIfErr_(error);
+    return (data || []).map(function (r) {
+      return {
+        timestamp: isoToLocaleIN_(r.ts), returnNo: r.return_no, event: r.event, category: r.category,
+        itemName: r.item_name, unit: r.unit, qtyDispatched: r.qty_dispatched, previouslyReturned: r.previously_returned,
+        qtyReturnedNow: r.qty_returned_now, condition: r.condition, markedBy: r.marked_by, role: r.role, remarks: r.remarks
+      };
+    });
+  },
+  getDispatchByEvent: async function () {
+    const challans = await API_IMPL_.getDeliveryChallans();
+    const byEvent = {};
+    challans.forEach(function (c) {
+      if (!c.itemName || !c.event) return;
+      if (!byEvent[c.event]) byEvent[c.event] = { finishedGoods: [], fixedAssets: [] };
+      const bucket = byEvent[c.event];
+      const qty = parseFloat(c.qty) || 0;
+      const returnQty = parseFloat(c.returnQty) || 0;
+      const list = c.category === 'Fixed Asset' ? bucket.fixedAssets : bucket.finishedGoods;
+      let existing = list.filter(function (it) { return it.name === c.itemName; })[0];
+      if (!existing) { existing = { name: c.itemName, unit: c.unit, dispatched: 0, returned: 0 }; list.push(existing); }
+      existing.dispatched += qty;
+      existing.returned += returnQty;
+    });
+    const allEvents = await API_IMPL_.getAllEvents();
+    const eventDateMap = {};
+    allEvents.forEach(function (ev) { eventDateMap[String(ev.eventName).trim().toLowerCase()] = ev.date; });
+    return Object.keys(byEvent).map(function (event) {
+      const fixedAssets = byEvent[event].fixedAssets;
+      fixedAssets.forEach(function (it) { it.pending = Math.max(0, it.dispatched - it.returned); });
+      let faStatus = 'none';
+      if (fixedAssets.length) {
+        const allReturned = fixedAssets.every(function (it) { return it.pending <= 0; });
+        const noneReturned = fixedAssets.every(function (it) { return it.returned <= 0; });
+        faStatus = allReturned ? 'complete' : (noneReturned ? 'pending' : 'partial');
+      }
+      return { event: event, eventDate: eventDateMap[String(event).trim().toLowerCase()] || '', finishedGoods: byEvent[event].finishedGoods, fixedAssets: fixedAssets, faStatus: faStatus };
+    });
+  },
+  getFixedAssetSummary: async function () {
+    const challans = await API_IMPL_.getDeliveryChallans();
+    const dispatchMap = {}, returnMap = {};
+    challans.forEach(function (c) {
+      if (c.category !== 'Fixed Asset' || !c.itemName) return;
+      const key = c.event + '|||' + c.itemName;
+      dispatchMap[key] = (dispatchMap[key] || 0) + (parseFloat(c.qty) || 0);
+      returnMap[key] = (returnMap[key] || 0) + (parseFloat(c.returnQty) || 0);
+    });
+    const byEvent = {};
+    Object.keys(dispatchMap).forEach(function (key) {
+      const parts = key.split('|||');
+      const event = parts[0], item = parts[1];
+      const dispatched = dispatchMap[key];
+      const returned = returnMap[key] || 0;
+      const pending = Math.max(0, dispatched - returned);
+      if (!byEvent[event]) byEvent[event] = [];
+      byEvent[event].push({ name: item, dispatched: dispatched, returned: returned, pending: pending });
+    });
+    return Object.keys(byEvent).map(function (event) {
+      const items = byEvent[event];
+      const allReturned = items.every(function (it) { return it.pending <= 0; });
+      const noneReturned = items.every(function (it) { return it.returned <= 0; });
+      const status = allReturned ? 'complete' : (noneReturned ? 'none' : 'partial');
+      return { event: event, items: items, status: status };
+    });
   }
 
   /* More functions (Events, Production, Stock, Bills, Dispatch, Admin,
@@ -3165,6 +3482,7 @@ function itemChefsArray_(it) {
    this extracts the file id and builds Drive's thumbnail endpoint instead. */
 function driveThumbnailUrl_(fileId, size) {
   if (!fileId) return '';
+  if (/^https?:\/\//.test(fileId)) return fileId; // already a direct URL (Supabase Storage)
   return 'https://lh3.googleusercontent.com/d/' + fileId + '=w' + (size || 800);
 }
 
