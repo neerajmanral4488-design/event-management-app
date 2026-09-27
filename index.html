@@ -12,6 +12,8 @@
 <meta name="apple-mobile-web-app-title" content="Event Mgmt">
 <link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
   :root{
@@ -994,63 +996,9 @@ const SUPABASE_URL = 'https://yspmmjbxszrymteupwrc.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlzcG1tamJ4c3pyeW10ZXVwd3JjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0ODYwMzcsImV4cCI6MjEwNjA2MjAzN30.UQGOijxEuvE49fznIN56H8vSc6Yo4f05-N6ol30SGZQ';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-/* ================= DIAGNOSTIC: on-screen error catcher ================= */
-/* Temporary — helps pin down the intermittent blank-screen-after-switching
-   bug. Shows any uncaught error or unhandled promise rejection as a
-   visible banner (top of screen) instead of only in the console, which
-   isn't reachable on a phone without a PC. Remove once the bug is found. */
-function showDiagError_(msg) {
-  let box = document.getElementById('diagErrorBox_');
-  if (!box) {
-    box = document.createElement('div');
-    box.id = 'diagErrorBox_';
-    box.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#B04B4B;color:#fff;padding:12px 14px;font-size:12px;font-family:monospace;white-space:pre-wrap;word-break:break-word;max-height:40vh;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.4);';
-    document.body.appendChild(box);
-  }
-  const line = document.createElement('div');
-  line.style.cssText = 'border-top:1px solid rgba(255,255,255,0.3);padding-top:6px;margin-top:6px;';
-  line.textContent = new Date().toLocaleTimeString() + ' — ' + msg;
-  box.appendChild(line);
-}
-window.addEventListener('error', function (e) {
-  showDiagError_('JS ERROR: ' + e.message + ' (' + (e.filename || '').split('/').pop() + ':' + e.lineno + ')');
-});
-window.addEventListener('unhandledrejection', function (e) {
-  const reason = e.reason;
-  showDiagError_('UNHANDLED PROMISE: ' + (reason && reason.message ? reason.message : String(reason)));
-});
 
-/* ================= DIAGNOSTIC: blank-screen state probe ================= */
-/* Temporary. Every 1.5s this checks whether ANY screen is actually
-   visible. If nothing is, it reports exactly which containers exist and
-   what state they're in — that tells us precisely why the page went
-   blank, which the error catcher above can't (a blank screen with no
-   thrown error produces no console output at all). */
-function diagSnapshot_() {
-  const role = document.getElementById('roleScreen');
-  const gate = document.getElementById('pwGate');
-  const depts = Array.prototype.slice.call(document.querySelectorAll('.dept-view'));
-  const activeDepts = depts.filter(function (d) { return d.classList.contains('active'); });
 
-  const roleVisible = role && !role.classList.contains('hidden');
-  const gateVisible = gate && !gate.classList.contains('hidden');
 
-  if (!roleVisible && !gateVisible && !activeDepts.length) {
-    showDiagError_(
-      'BLANK STATE:\n' +
-      '  roleScreen hidden=' + (role ? role.classList.contains('hidden') : 'MISSING') + '\n' +
-      '  pwGate hidden=' + (gate ? gate.classList.contains('hidden') : 'MISSING') + '\n' +
-      '  dept-views total=' + depts.length + ', active=' + activeDepts.length + '\n' +
-      '  inDeptView_=' + (typeof inDeptView_ !== 'undefined' ? inDeptView_ : 'undef') + '\n' +
-      '  lastEnterDeptKey=' + (typeof lastEnterDeptKey !== 'undefined' ? lastEnterDeptKey : 'undef') + '\n' +
-      '  pendingGsRun=' + (typeof pendingGsRunCount_ !== 'undefined' ? pendingGsRunCount_ : 'undef')
-    );
-    // Recover rather than leaving the person stranded — the report above
-    // stays on screen so we can still see what happened.
-    if (role) role.classList.remove('hidden');
-  }
-}
-setInterval(diagSnapshot_, 1500);
 
 /* Same placeholder-filled defaults Code.gs used to fall back on when a
    setting had never been saved yet. */
@@ -2655,7 +2603,11 @@ function refreshApproveFromBanner_() {
 /* ---------- helpers ---------- */
 function switchTab(v) {
   document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t.dataset.view === v); });
-  document.querySelectorAll('.view').forEach(function (el) { el.classList.remove('active'); });
+  // Scope this to Purchase's own views only. Every other department also
+  // wraps its content in a `.view active` div, so an unscoped selector
+  // here silently stripped their `active` class and left them rendering
+  // blank for the rest of the session.
+  document.querySelectorAll('#dept-purchase .view').forEach(function (el) { el.classList.remove('active'); });
   document.getElementById('view-' + v).classList.add('active');
   stopApprovePolling_();
   if (v === 'approve') { loadApprovalView(); startApprovePolling_(); }
