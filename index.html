@@ -1068,6 +1068,125 @@ function rowToProdObj_impl(r) {
   };
 }
 
+/* ---- Stock / FIFO internals (mirror Code.gs's addLedgerEntry_, addStockBatch_,
+   ensureOpeningBatchExists_, consumeStockFifo_, addUsedToStock_) ---- */
+
+async function addLedgerEntry_impl(itemName, unit, type, qty, price, reference) {
+  const q = parseFloat(qty) || 0;
+  const p = parseFloat(price) || 0;
+  await sb.from('stock_ledger').insert({
+    item_name: itemName, unit: unit || '', type: type, qty: q, price: p,
+    value: Math.round(q * p * 100) / 100, reference: reference || ''
+  });
+}
+
+async function addStockBatch_impl(itemName, unit, qty, price, source) {
+  const id = genId_('BATCH');
+  await sb.from('stock_batches').insert({ id: id, item_name: itemName, unit: unit || '', qty: qty, remaining_qty: qty, price_per_unit: price || 0, source: source || '' });
+  await addLedgerEntry_impl(itemName, unit, 'in', qty, price, source);
+  return id;
+}
+
+/* Same as addStockBatch_impl but skips the ledger 'in' entry — used only to
+   backfill pre-FIFO stock (already counted via the Stock row's own
+   opening/closing-value baseline in getStockPeriodReport). Logging it to
+   the ledger too would double-count it as a "Purchase". */
+async function addStockBatchSilent_impl(itemName, unit, qty, price, source) {
+  const id = genId_('BATCH');
+  await sb.from('stock_batches').insert({ id: id, item_name: itemName, unit: unit || '', qty: qty, remaining_qty: qty, price_per_unit: price || 0, source: source || '' });
+  return id;
+}
+
+async function ensureOpeningBatchExists_impl(itemName) {
+  const { data: batches, error } = await sb.from('stock_batches').select('*').ilike('item_name', itemName);
+  throwIfErr_(error);
+  const zeroBackfill = (batches || []).find(function (b) { return b.source === 'Pre-tracking balance' && (parseFloat(b.price_per_unit) || 0) === 0; });
+  const hasGenuineBatch = (batches || []).some(function (b) { return !(b.source === 'Pre-tracking balance' && (parseFloat(b.price_per_unit) || 0) === 0); });
+  if (hasGenuineBatch) return;
+
+  const { data: stockRow, error: stockErr } = await sb.from('stock').select('*').ilike('name', itemName).maybeSingle();
+  throwIfErr_(stockErr);
+  if (!stockRow) return;
+  const opening = parseFloat(stockRow.opening) || 0;
+  const purchased = parseFloat(stockRow.purchase) || 0;
+  const used = parseFloat(stockRow.used) || 0;
+  const currentQty = opening + purchased - used;
+  if (currentQty <= 0) return;
+  const openingValue = parseFloat(stockRow.closing_stock_value) || 0;
+  const price = currentQty > 0 ? (openingValue / currentQty) : 0;
+
+  if (zeroBackfill) {
+    if (price > 0) await sb.from('stock_batches').update({ price_per_unit: price }).eq('id', zeroBackfill.id);
+    return;
+  }
+  await addStockBatchSilent_impl(stockRow.name, stockRow.unit, currentQty, price, 'Pre-tracking balance');
+}
+
+async function consumeStockFifo_impl(itemName, qtyToConsume) {
+  await ensureOpeningBatchExists_impl(itemName);
+  const { data: batches, error } = await sb.from('stock_batches').select('*').ilike('item_name', itemName).order('date', { ascending: true });
+  throwIfErr_(error);
+  const requestedQty = parseFloat(qtyToConsume) || 0;
+  let remaining = requestedQty;
+  let totalCost = 0;
+  const updates = [];
+
+  for (let i = 0; i < (batches || []).length && remaining > 0.0000001; i++) {
+    const b = batches[i];
+    const batchRemaining = parseFloat(b.remaining_qty) || 0;
+    if (batchRemaining <= 0) continue;
+    const price = parseFloat(b.price_per_unit) || 0;
+    const take = Math.min(batchRemaining, remaining);
+    updates.push({ id: b.id, newRemaining: batchRemaining - take });
+    totalCost += take * price;
+    remaining -= take;
+  }
+
+  for (let i = 0; i < updates.length; i++) {
+    await sb.from('stock_batches').update({ remaining_qty: updates[i].newRemaining }).eq('id', updates[i].id);
+  }
+
+  if (requestedQty > 0) {
+    const avgPrice = totalCost / requestedQty;
+    await addLedgerEntry_impl(itemName, '', 'out', requestedQty, avgPrice, 'Issued');
+  }
+
+  return { consumedQty: requestedQty, cost: Math.round(totalCost * 100) / 100 };
+}
+
+async function addUsedToStock_impl(items) {
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const usedQty = parseFloat(it.availableQty);
+    if (isNaN(usedQty) || usedQty <= 0) continue;
+    const { data: row } = await sb.from('stock').select('id,used').ilike('name', it.name).maybeSingle();
+    if (!row) continue;
+    const newUsed = (parseFloat(row.used) || 0) + usedQty;
+    await sb.from('stock').update({ used: newUsed }).eq('id', row.id);
+  }
+}
+
+async function getAllStockValuations_impl() {
+  const { data, error } = await sb.from('stock_batches').select('item_name,remaining_qty,price_per_unit');
+  throwIfErr_(error);
+  const map = {};
+  (data || []).forEach(function (r) {
+    const remainingQty = parseFloat(r.remaining_qty) || 0;
+    if (remainingQty <= 0) return;
+    const key = String(r.item_name).toLowerCase();
+    const price = parseFloat(r.price_per_unit) || 0;
+    if (!map[key]) map[key] = { totalQty: 0, totalValue: 0 };
+    map[key].totalQty += remainingQty;
+    map[key].totalValue += remainingQty * price;
+  });
+  const result = {};
+  Object.keys(map).forEach(function (key) {
+    const m = map[key];
+    result[key] = { avgPrice: m.totalQty > 0 ? (m.totalValue / m.totalQty) : 0, stockValue: m.totalValue };
+  });
+  return result;
+}
+
 async function logActivity_(dept, user, action, details) {
   try { await sb.from('activity_log').insert({ department: dept, user_name: user || '', action: action, details: details || '' }); }
   catch (e) { /* logging should never break the main action */ }
@@ -1341,6 +1460,229 @@ const API_IMPL_ = {
     throwIfErr_(error);
     logActivity_('Purchase', actorEmail_(), anyIssued ? 'Remaining Quantity Cancelled (Partial Fulfillment)' : 'Request Rejected', id);
     return { status: finalStatus };
+  },
+
+  /* ---- stock / store ---- */
+  getStock: async function () {
+    const { data, error } = await sb.from('stock').select('*').order('name');
+    throwIfErr_(error);
+    const valuationMap = await getAllStockValuations_impl();
+    return (data || []).map(function (r) {
+      const opening = parseFloat(r.opening) || 0;
+      const purchased = parseFloat(r.purchase) || 0;
+      const used = parseFloat(r.used) || 0;
+      const closing = opening + purchased - used;
+      const minQty = (r.min_qty === null || r.min_qty === undefined || r.min_qty === '') ? '' : r.min_qty;
+      const minNum = parseFloat(minQty);
+      const isLow = !isNaN(minNum) && minNum > 0 && closing < minNum;
+      const valuation = valuationMap[String(r.name).toLowerCase()] || { avgPrice: 0, stockValue: 0 };
+      return {
+        name: r.name, unit: r.unit, opening: r.opening, purchased: r.purchase, used: r.used,
+        closing: closing, minQty: minQty, isLow: isLow,
+        avgPrice: Math.round(valuation.avgPrice * 100) / 100,
+        stockValue: Math.round(valuation.stockValue * 100) / 100,
+        rowIndex: r.id
+      };
+    });
+  },
+  getLowStockItems: async function () {
+    const stock = await API_IMPL_.getStock();
+    return stock.filter(function (it) { return it.isLow; });
+  },
+  getStockPeriodReport: async function (fromDateStr, toDateStr) {
+    const { data: stockRows, error: stockErr } = await sb.from('stock').select('*').order('name');
+    throwIfErr_(stockErr);
+    const { data: ledgerRows, error: ledgerErr } = await sb.from('stock_ledger').select('*');
+    throwIfErr_(ledgerErr);
+
+    const ledgerByItem = {};
+    (ledgerRows || []).forEach(function (r) {
+      const key = String(r.item_name).toLowerCase();
+      if (!ledgerByItem[key]) ledgerByItem[key] = [];
+      ledgerByItem[key].push({ date: new Date(r.date), type: r.type, qty: parseFloat(r.qty) || 0, value: parseFloat(r.value) || 0 });
+    });
+
+    const fromD = fromDateStr ? new Date(fromDateStr + 'T00:00:00') : null;
+    const toD = toDateStr ? new Date(toDateStr + 'T23:59:59') : null;
+
+    return (stockRows || []).map(function (r) {
+      const name = r.name;
+      if (!name) return null;
+      const baselineQty = parseFloat(r.opening) || 0;
+      const baselineValue = parseFloat(r.closing_stock_value) || 0;
+      const entries = ledgerByItem[String(name).toLowerCase()] || [];
+
+      let beforeInQty = 0, beforeInVal = 0, beforeOutQty = 0, beforeOutVal = 0;
+      let periodInQty = 0, periodInVal = 0, periodOutQty = 0, periodOutVal = 0;
+
+      entries.forEach(function (e) {
+        if (fromD && e.date < fromD) {
+          if (e.type === 'in') { beforeInQty += e.qty; beforeInVal += e.value; } else { beforeOutQty += e.qty; beforeOutVal += e.value; }
+        } else if ((!fromD || e.date >= fromD) && (!toD || e.date <= toD)) {
+          if (e.type === 'in') { periodInQty += e.qty; periodInVal += e.value; } else { periodOutQty += e.qty; periodOutVal += e.value; }
+        }
+      });
+
+      const openingQty = baselineQty + beforeInQty - beforeOutQty;
+      const openingValue = baselineValue + beforeInVal - beforeOutVal;
+      const closingQty = openingQty + periodInQty - periodOutQty;
+      const closingValue = openingValue + periodInVal - periodOutVal;
+
+      const minQty = (r.min_qty === null || r.min_qty === undefined || r.min_qty === '') ? '' : r.min_qty;
+      const minNum = parseFloat(minQty);
+      const isLow = !isNaN(minNum) && minNum > 0 && closingQty < minNum;
+
+      return {
+        name: name, unit: r.unit,
+        opening: Math.round(openingQty * 100) / 100, purchased: Math.round(periodInQty * 100) / 100,
+        used: Math.round(periodOutQty * 100) / 100, closing: Math.round(closingQty * 100) / 100,
+        avgPrice: closingQty > 0 ? Math.round((closingValue / closingQty) * 100) / 100 : 0,
+        stockValue: Math.round(closingValue * 100) / 100, minQty: minQty, isLow: isLow, rowIndex: r.id
+      };
+    }).filter(function (r) { return r; });
+  },
+  getStockBatchJourney: async function (itemName) {
+    const { data, error } = await sb.from('stock_batches').select('*').ilike('item_name', itemName).order('date', { ascending: true });
+    throwIfErr_(error);
+    return (data || []).map(function (r) {
+      return {
+        batchId: r.id, itemName: r.item_name, unit: r.unit, date: isoToLocaleIN_(r.date),
+        qty: parseFloat(r.qty) || 0, remainingQty: parseFloat(r.remaining_qty) || 0,
+        price: parseFloat(r.price_per_unit) || 0, source: r.source, rowIndex: r.id
+      };
+    });
+  },
+  updateStockOpeningByRow: async function (rowIndex, opening, price) {
+    const { error } = await sb.from('stock').update({ opening: opening }).eq('id', rowIndex);
+    throwIfErr_(error);
+    if (price !== undefined && price !== null && price !== '') {
+      const { data: row } = await sb.from('stock').select('name,unit').eq('id', rowIndex).maybeSingle();
+      if (row) {
+        const { data: existingBatch } = await sb.from('stock_batches').select('id').eq('item_name', row.name).eq('source', 'Opening').maybeSingle();
+        if (existingBatch) {
+          await sb.from('stock_batches').update({ qty: opening, remaining_qty: opening, price_per_unit: price }).eq('id', existingBatch.id);
+        } else if (parseFloat(opening) > 0) {
+          await addStockBatch_impl(row.name, row.unit, parseFloat(opening), parseFloat(price) || 0, 'Opening');
+        }
+      }
+    }
+    logActivity_('Store', actorEmail_(), 'Opening Stock Update Kiya', 'Row ' + rowIndex + ' → ' + opening + (price ? ' @ ₹' + price : ''));
+    return true;
+  },
+  updateStockMinQtyByRow: async function (rowIndex, minQty) {
+    const { error } = await sb.from('stock').update({ min_qty: minQty === '' ? null : minQty }).eq('id', rowIndex);
+    throwIfErr_(error);
+    logActivity_('Store', actorEmail_(), 'Minimum Stock Level Set Kiya', 'Row ' + rowIndex + ' → ' + minQty);
+    return true;
+  },
+  removeStockItemByRow: async function (rowIndex) {
+    const { error } = await sb.from('stock').delete().eq('id', rowIndex);
+    throwIfErr_(error);
+    logActivity_('Store', actorEmail_(), 'Stock Item Hataya', 'Row ' + rowIndex);
+    return true;
+  },
+
+  /* ---- issuing (Purchase approving/fulfilling a production request) ---- */
+  issueProductionItems: async function (id, issuedDeltas) {
+    const { data: reqRow, error: reqErr } = await sb.from('production_requests').select('*').eq('id', id).maybeSingle();
+    throwIfErr_(reqErr);
+    if (!reqRow) throw new Error('Request not mili.');
+
+    const stock = await API_IMPL_.getStock();
+    const stockMap = {};
+    stock.forEach(function (s) { stockMap[String(s.name).toLowerCase()] = parseFloat(s.closing) || 0; });
+
+    const originalItems = reqRow.items || [];
+    const actualIssuedAmounts = [];
+    let anyIssuedThisRound = false;
+    const items = [];
+
+    for (let idx = 0; idx < originalItems.length; idx++) {
+      const it = originalItems[idx];
+      const delta = issuedDeltas[idx] || {};
+      let addQty = parseFloat(delta.issueQty) || 0;
+      const available = stockMap.hasOwnProperty(String(it.name).toLowerCase()) ? stockMap[String(it.name).toLowerCase()] : 0;
+      if (addQty > available) addQty = Math.max(0, available);
+      actualIssuedAmounts[idx] = addQty;
+      const prevIssued = parseFloat(it.issuedQty) || 0;
+      const newIssued = prevIssued + addQty;
+      const issueLog = Array.isArray(it.issueLog) ? it.issueLog.slice() : [];
+      let issuedValue = parseFloat(it.issuedValue) || 0;
+      if (addQty > 0) {
+        anyIssuedThisRound = true;
+        const fifoResult = await consumeStockFifo_impl(it.name, addQty);
+        issuedValue += fifoResult.cost;
+        issueLog.push({ date: new Date().toLocaleString('en-IN'), qty: addQty, cost: fifoResult.cost });
+      }
+      items.push({
+        name: it.name, qty: it.qty, unit: it.unit, issuedQty: newIssued,
+        issuedValue: Math.round(issuedValue * 100) / 100,
+        remark: (delta.remark !== undefined && delta.remark !== '') ? delta.remark : (it.remark || ''),
+        issueLog: issueLog
+      });
+    }
+
+    let allDone = true, anyIssuedTotal = false;
+    items.forEach(function (it) {
+      const reqNum = parseFloat(it.qty) || 0;
+      const issuedNum = parseFloat(it.issuedQty) || 0;
+      if (issuedNum < reqNum) allDone = false;
+      if (issuedNum > 0) anyIssuedTotal = true;
+    });
+    const status = allDone ? 'approved' : (anyIssuedTotal ? 'partial' : 'pending');
+
+    const { error: updErr } = await sb.from('production_requests').update({ items: items, status: status, updated_at: new Date().toISOString() }).eq('id', id);
+    throwIfErr_(updErr);
+
+    if (anyIssuedThisRound) {
+      const deductItems = items
+        .map(function (it, idx) { return { name: it.name, availableQty: actualIssuedAmounts[idx] || 0 }; })
+        .filter(function (d) { return d.availableQty > 0; });
+      await addUsedToStock_impl(deductItems);
+    }
+
+    logActivity_('Purchase', actorEmail_(), 'Items Issued (status: ' + status + ')', id);
+    return { status: status };
+  },
+
+  /* ---- return leftover material (new feature) ---- */
+  returnLeftoverMaterial: async function (requestId, itemIndex, returnQty, remark) {
+    const { data: reqRow, error } = await sb.from('production_requests').select('*').eq('id', requestId).maybeSingle();
+    throwIfErr_(error);
+    if (!reqRow) throw new Error('Request not mili.');
+    const items = (reqRow.items || []).slice();
+    const it = items[itemIndex];
+    if (!it) throw new Error('Item not mila.');
+
+    const issuedQty = parseFloat(it.issuedQty) || 0;
+    const alreadyReturned = parseFloat(it.returnedQty) || 0;
+    const qty = parseFloat(returnQty) || 0;
+    const netAvailable = issuedQty - alreadyReturned;
+    if (qty <= 0) throw new Error('Return quantity must be greater than 0.');
+    if (qty > netAvailable) throw new Error('Cannot return more than ' + netAvailable + ' ' + it.unit + ' (net issued).');
+
+    // Price it back in at whatever this item's average issued cost was, so
+    // the returned batch carries a sensible value for future FIFO issuing.
+    const priceEach = issuedQty > 0 ? ((parseFloat(it.issuedValue) || 0) / issuedQty) : 0;
+    await addStockBatch_impl(it.name, it.unit, qty, priceEach, 'Returned');
+
+    // "used" tracks net-issued for the simple opening+purchase-used view
+    // elsewhere in the app — a return reduces it, same as an issue increases it.
+    const { data: stockRow } = await sb.from('stock').select('id,used').ilike('name', it.name).maybeSingle();
+    if (stockRow) {
+      const newUsed = Math.max(0, (parseFloat(stockRow.used) || 0) - qty);
+      await sb.from('stock').update({ used: newUsed }).eq('id', stockRow.id);
+    }
+
+    const returnLog = Array.isArray(it.returnLog) ? it.returnLog.slice() : [];
+    returnLog.push({ date: new Date().toLocaleString('en-IN'), qty: qty, remark: remark || '' });
+    items[itemIndex] = Object.assign({}, it, { returnedQty: alreadyReturned + qty, returnLog: returnLog });
+
+    const { error: updErr } = await sb.from('production_requests').update({ items: items, updated_at: new Date().toISOString() }).eq('id', requestId);
+    throwIfErr_(updErr);
+
+    logActivity_('Purchase', actorEmail_(), 'Leftover Material Returned', requestId + ' — ' + it.name + ': ' + qty + ' ' + it.unit + (remark ? ' (' + remark + ')' : ''));
+    return { returnedQty: alreadyReturned + qty };
   }
 
   /* More functions (Events, Production, Stock, Bills, Dispatch, Admin,
@@ -2030,7 +2372,9 @@ async function loadApprovalView() {
         const rowColor = issued >= reqNum && reqNum > 0 ? '#E7F5EC' : (issued > 0 ? '#FDF6D9' : '#FBEAEA');
         const check = issued >= reqNum && reqNum > 0 ? ' ✅' : '';
         const availDisplay = available === null ? '<span class="short-tag">not in stock</span>' : (available <= 0 ? '<span class="short-tag">0 ' + it.unit + '</span>' : available + ' ' + it.unit);
-        return '<tr style="background:' + rowColor + ';" onclick="event.stopPropagation()"><td>' + it.name + check + renderIssueLog(it.issueLog) + '</td><td>' + it.qty + ' ' + it.unit + '</td><td>' + issued + ' ' + it.unit + '</td>' +
+        const returnedNum = parseFloat(it.returnedQty) || 0;
+        const netIssued = issued - returnedNum;
+        return '<tr style="background:' + rowColor + ';" onclick="event.stopPropagation()"><td>' + it.name + check + renderIssueLog(it.issueLog) + renderReturnLog(it.returnLog) + returnLeftoverInputHtml_(r.id, idx, netIssued, it.unit) + '</td><td>' + it.qty + ' ' + it.unit + '</td><td>' + issued + ' ' + it.unit + '</td>' +
           '<td>' + (it.issuedValue ? '₹' + it.issuedValue : '—') + '</td>' +
           '<td>' + availDisplay + '</td>' +
           '<td><input type="text" id="issue-' + r.id + '-' + idx + '" data-max="' + (available === null ? 0 : available) + '" value="' + defaultIssue + '" placeholder="0"></td>' +
@@ -2062,17 +2406,19 @@ async function loadApprovalView() {
       (r.forItem ? '<div class="meta" style="font-weight:600;">🍽️ For: ' + r.forItem + '</div>' : '') +
       renderFlowStepper(r.status) +
       '<table class="avail" style="margin:6px 0;table-layout:fixed;"><thead><tr><th style="width:220px;">Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th style="width:80px;">Value</th><th>Note</th></tr></thead><tbody>' +
-      r.items.map(function (it) {
+      r.items.map(function (it, idx) {
         if (it.issuedQty === undefined) {
           return '<tr><td>' + it.name + '</td><td>' + it.qty + ' ' + it.unit + '</td><td>—</td><td>—</td><td class="meta">' + (it.description || '') + '</td></tr>';
         }
         const reqNum = parseFloat(it.qty), issuedNum = parseFloat(it.issuedQty) || 0;
         const short = issuedNum < reqNum;
+        const returnedNum = parseFloat(it.returnedQty) || 0;
+        const netIssued = issuedNum - returnedNum;
         return '<tr><td>' + it.name + (it.description ? '<div class="meta">' + it.description + '</div>' : '') + '</td>' +
           '<td>' + it.qty + ' ' + it.unit + '</td>' +
           '<td><b>' + issuedNum + ' ' + it.unit + '</b> ' + (short ? '<span class="short-tag">(short)</span>' : '<span class="full-tag">(complete)</span>') + '</td>' +
           '<td>' + (it.issuedValue ? '₹' + it.issuedValue : '—') + '</td>' +
-          '<td class="meta">' + (it.remark || '') + renderIssueLog(it.issueLog) + '</td></tr>';
+          '<td class="meta">' + (it.remark || '') + renderIssueLog(it.issueLog) + renderReturnLog(it.returnLog) + returnLeftoverInputHtml_(r.id, idx, netIssued, it.unit) + '</td></tr>';
       }).join('') + '</tbody></table>' +
       (function () {
         const total = r.items.reduce(function (sum, it) { return sum + (parseFloat(it.issuedValue) || 0); }, 0);
@@ -3604,6 +3950,37 @@ function renderIssueLog(issueLog) {
   return '<div style="font-size:10.5px;color:var(--ink-soft);margin-top:3px;line-height:1.5;">' +
     issueLog.map(function (l) { return '+' + l.qty + ' on ' + l.date + (l.cost ? ' (₹' + l.cost + ')' : ''); }).join('<br>') +
     '</div>';
+}
+
+function renderReturnLog(returnLog) {
+  if (!returnLog || !returnLog.length) return '';
+  return '<div style="font-size:10.5px;color:var(--amber);margin-top:3px;line-height:1.5;">' +
+    returnLog.map(function (l) { return '↩ ' + l.qty + ' returned on ' + l.date + (l.remark ? ' (' + l.remark + ')' : ''); }).join('<br>') +
+    '</div>';
+}
+
+function returnLeftoverInputHtml_(requestId, idx, netAvailable, unit) {
+  if (netAvailable <= 0) return '';
+  return '<div style="margin-top:5px;display:flex;gap:4px;align-items:center;" onclick="event.stopPropagation()">' +
+    '<input type="text" id="return-' + requestId + '-' + idx + '" placeholder="Qty" style="width:52px;border:1px solid var(--border);border-radius:4px;padding:4px;font-size:11px;">' +
+    '<button class="btn small" style="padding:4px 8px;font-size:10.5px;" onclick="returnLeftoverClick(\'' + requestId + '\',' + idx + ',' + netAvailable + ')">Return Leftover</button>' +
+    '<span class="meta" style="font-size:10px;">(max ' + netAvailable + ' ' + unit + ')</span>' +
+    '</div>';
+}
+
+async function returnLeftoverClick(requestId, idx, maxQty) {
+  const input = document.getElementById('return-' + requestId + '-' + idx);
+  const qty = parseFloat(input.value) || 0;
+  if (qty <= 0) { showBanner('approveBanner', 'Enter a valid return quantity.', 'err'); return; }
+  if (qty > maxQty) { showBanner('approveBanner', 'Cannot return more than ' + maxQty + ' (net issued).', 'err'); return; }
+  showBanner('approveBanner', 'Processing return...', 'wait');
+  try {
+    await gsRun('returnLeftoverMaterial', requestId, idx, qty, '');
+    showBanner('approveBanner', 'Leftover material returned to stock.', 'ok');
+    loadApprovalView();
+  } catch (e) {
+    showBanner('approveBanner', e && e.message ? e.message : 'Could not process the return.', 'err');
+  }
 }
 
 /* Shared row-tint for compact rows: the same light color carries through
