@@ -49,7 +49,7 @@
 
   table.items{width:100%;border-collapse:collapse;font-size:13px;margin:6px 0 10px;}
   table.items th{background:var(--blue-pale);color:var(--navy);font-size:10.5px;text-transform:uppercase;letter-spacing:0.04em;text-align:left;padding:8px 7px;border:1px solid var(--border);}
-  table.items td{border:1px solid var(--border);padding:2px;}
+  table.items td{border:1px solid var(--border);padding:2px;word-wrap:break-word;overflow-wrap:break-word;}
   table.items td input{border:none;background:transparent;width:100%;padding:7px;font-size:13px;}
   table.items td input:focus{outline:none;background:var(--blue-pale-2);}
   .rm-btn{border:none;background:none;color:var(--red);cursor:pointer;font-size:15px;padding:4px 8px;}
@@ -78,7 +78,7 @@
   .banner.err{background:#FBEAEA;color:var(--red);border:1px solid #EFC4C4;}
   .banner.wait{background:#FBEFDA;color:var(--amber);border:1px solid #F0DBAE;}
 
-  .card{border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:10px;background:var(--blue-pale-2);}
+  .card{border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:10px;background:var(--blue-pale-2);overflow-wrap:break-word;word-wrap:break-word;}
   .card .top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
   .card .reqno{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--blue);font-weight:600;}
   .card .who{font-size:13.5px;font-weight:600;color:var(--ink);}
@@ -109,10 +109,10 @@
   .role-card .icon{font-size:28px;margin-bottom:12px;}
   .role-card .title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;color:var(--navy);margin-bottom:5px;}
   .role-card .sub{font-size:12px;color:var(--ink-soft);line-height:1.4;}
-  .switch-role{text-align:right;padding:14px 40px 0;font-size:12px;}
+  .switch-role{display:flex;align-items:center;justify-content:space-between;padding:14px 40px 0;font-size:13px;}
   .switch-role a{color:var(--blue-mid);cursor:pointer;text-decoration:underline;}
   .hidden{display:none !important;}
-  .stock-qty-input{width:80px;border:1px solid var(--border);border-radius:4px;background:#fff;padding:5px 7px;font-size:12.5px;}
+  .stock-qty-input{width:60px;border:1px solid var(--border);border-radius:4px;background:#fff;padding:5px 6px;font-size:12.5px;}
   .stock-update-btn{border:none;background:none;color:var(--blue);cursor:pointer;font-size:11px;font-weight:600;margin-left:6px;}
 
   .item-ac-wrap{position:relative;}
@@ -289,8 +289,8 @@
   </div>
 
   <div id="switchRoleBar" class="switch-role hidden">
-    <span id="currentDeptBadge" style="color:var(--ink-soft);font-weight:600;margin-right:10px;"></span>
-    <a onclick="showRoleScreen()">Switch Department</a>
+    <a onclick="showRoleScreen()" style="display:flex;align-items:center;gap:5px;">← Back</a>
+    <span id="currentDeptBadge" style="color:var(--ink-soft);font-weight:600;"></span>
   </div>
 
   <div class="tabs hidden" id="tabsBar">
@@ -568,7 +568,7 @@
         <th style="width:90px;">= Closing</th>
         <th style="width:90px;">Avg Price</th>
         <th style="width:100px;">Stock Value</th>
-        <th style="width:100px;">Min Qty</th>
+        <th style="width:130px;">Min Qty</th>
         <th style="width:120px;">Status</th>
       </tr></thead>
       <tbody id="stockBody"><tr><td colspan="9" class="empty">Loading...</td></tr></tbody>
@@ -1033,7 +1033,11 @@ const DEFAULT_SETTINGS_ = {
 /* Every function here used to run on Google's server (Code.gs). Now it
    runs in the browser and talks to Supabase directly. genId_/actorEmail_/
    logActivity_ replace the equivalents that used to live server-side. */
-function genId_(prefix) { return prefix + '-' + Date.now().toString().slice(-8); }
+async function genId_(prefix) {
+  const { data, error } = await sb.rpc('next_id', { p_prefix: prefix });
+  if (error || !data) return prefix + '-' + Date.now().toString().slice(-8); // fallback if the sequence isn't set up yet
+  return data;
+}
 function actorEmail_() { return 'App User'; }
 
 /* Postgres `date` columns come back as ISO ("2026-09-08"), but the rest
@@ -1099,7 +1103,7 @@ async function addLedgerEntry_impl(itemName, unit, type, qty, price, reference) 
 }
 
 async function addStockBatch_impl(itemName, unit, qty, price, source) {
-  const id = genId_('BATCH');
+  const id = await genId_('BATCH');
   await sb.from('stock_batches').insert({ id: id, item_name: itemName, unit: unit || '', qty: qty, remaining_qty: qty, price_per_unit: price || 0, source: source || '' });
   await addLedgerEntry_impl(itemName, unit, 'in', qty, price, source);
   return id;
@@ -1110,7 +1114,7 @@ async function addStockBatch_impl(itemName, unit, qty, price, source) {
    opening/closing-value baseline in getStockPeriodReport). Logging it to
    the ledger too would double-count it as a "Purchase". */
 async function addStockBatchSilent_impl(itemName, unit, qty, price, source) {
-  const id = genId_('BATCH');
+  const id = await genId_('BATCH');
   await sb.from('stock_batches').insert({ id: id, item_name: itemName, unit: unit || '', qty: qty, remaining_qty: qty, price_per_unit: price || 0, source: source || '' });
   return id;
 }
@@ -1375,7 +1379,7 @@ const API_IMPL_ = {
 
   /* ---- events ---- */
   createEvent: async function (data) {
-    const id = genId_('EVT');
+    const id = await genId_('EVT');
     data.eventName = toTitleCaseClient_(data.eventName);
     data.location = toTitleCaseClient_(data.location);
     data.createdBy = toTitleCaseClient_(data.createdBy);
@@ -1424,7 +1428,7 @@ const API_IMPL_ = {
 
   /* ---- production requests ---- */
   submitProductionRequest: async function (data) {
-    const id = genId_('PR');
+    const id = await genId_('PR');
     data.reqBy = toTitleCaseClient_(data.reqBy);
     (data.items || []).forEach(function (it) { it.name = toTitleCaseClient_(it.name); });
     const { error } = await sb.from('production_requests').insert({
@@ -1751,7 +1755,7 @@ const API_IMPL_ = {
       attachments.push({ name: uploaded.name, url: uploaded.url });
     }
 
-    const id = genId_('BILL');
+    const id = await genId_('BILL');
     let totalValue = 0;
     const items = data.items.map(function (it) {
       const qty = parseFloat(it.qty) || 0;
@@ -1797,7 +1801,7 @@ const API_IMPL_ = {
   submitPurchaseRequest: async function (data) {
     data.reqBy = toTitleCaseClient_(data.reqBy);
     (data.items || []).forEach(function (it) { it.name = toTitleCaseClient_(it.name); });
-    const id = genId_('PO');
+    const id = await genId_('PO');
     const { error } = await sb.from('purchase_requests').insert({
       id: id, req_by: data.reqBy, my_email: data.myEmail, senior_email: data.seniorEmail,
       note: data.note || '', items: data.items, status: 'pending'
@@ -2449,6 +2453,11 @@ function enterDept(deptKey) {
   lastEnterDeptTime = now;
   lastEnterDeptKey = deptKey;
 
+  if (!inDeptView_) {
+    try { history.pushState({ inDept: true }, '', ''); } catch (e) {}
+  }
+  inDeptView_ = true;
+
   try {
     stopProdHeadPolling_();
     stopApprovePolling_();
@@ -2457,7 +2466,7 @@ function enterDept(deptKey) {
     if (!target) throw new Error('Unknown department: ' + deptKey);
 
     document.getElementById('switchRoleBar').classList.remove('hidden');
-    document.getElementById('currentDeptBadge').textContent = 'You are in: ' + currentDeptLabel;
+    document.getElementById('currentDeptBadge').textContent = currentDeptLabel;
     document.title = currentDeptLabel + ' — ' + (appConfig && appConfig.appTitle ? appConfig.appTitle : 'Event Management');
     document.querySelectorAll('.dept-view').forEach(function (el) { el.classList.remove('active'); });
     target.classList.add('active');
@@ -2492,13 +2501,15 @@ function goHomeReset() {
   loadRawMaterialsList();
 }
 
-function showRoleScreen() {
+function showRoleScreen(fromPopState) {
+  const wasInDept = inDeptView_;
   pwToken++;
   pendingDept = null;
   currentDeptLabel = '';
   lastEnterDeptKey = '';
   lastEnterDeptTime = 0;
   pendingEnterDeptKey = null;
+  inDeptView_ = false;
   stopProdHeadPolling_();
   stopApprovePolling_();
   stopAdminRequestsPolling_();
@@ -2513,7 +2524,22 @@ function showRoleScreen() {
   if (ticketOverlay) ticketOverlay.classList.add('hidden');
   document.querySelectorAll('.dept-view').forEach(function (el) { el.classList.remove('active'); });
   document.getElementById('roleScreen').classList.remove('hidden');
+  // Clicking the on-screen back arrow (not the phone's own back button)
+  // still needs to consume the history entry enterDept() pushed, so the
+  // browser's back stack doesn't grow every time someone switches
+  // departments. history.back() triggers popstate itself, which we
+  // ignore below since inDeptView_ is already false by then.
+  if (!fromPopState && wasInDept) {
+    try { history.back(); } catch (e) {}
+  }
 }
+
+let inDeptView_ = false;
+window.addEventListener('popstate', function () {
+  if (inDeptView_) {
+    showRoleScreen(true);
+  }
+});
 
 let appConfig = null;
 
@@ -4079,6 +4105,17 @@ async function loadPendingTasksForProduction() {
 function renderPendingTasksForDept_() {
   const box = document.getElementById('prPendingTasks');
   const dept = document.getElementById('pendingTasksDeptFilter').value;
+
+  const reqFilter = document.getElementById('prMyReqDeptFilter');
+  if (reqFilter) {
+    if (dept && Array.prototype.slice.call(reqFilter.options).some(function (o) { return o.value === dept; })) {
+      reqFilter.value = dept;
+    } else {
+      reqFilter.value = '';
+    }
+    renderMyProductionRequests_();
+  }
+
   if (!dept) { box.innerHTML = '<div class="empty">Select a department above to see its pending tasks.</div>'; return; }
   const events = pendingTasksGrouped_[dept];
   if (!events || !events.length) { box.innerHTML = '<div class="empty">No pending actions for this department.</div>'; return; }
@@ -4323,7 +4360,7 @@ function statusRowColors_(status) {
 }
 
 function statusBadgeInfo(status) {
-  if (status === 'pending_head') return { cls: 'pending', label: 'pending (head approval)' };
+  if (status === 'pending_head') return { cls: 'pending', label: 'pending' };
   if (status === 'partial_rejected') return { cls: 'partial', label: 'Partially Approved' };
   return { cls: status, label: status };
 }
