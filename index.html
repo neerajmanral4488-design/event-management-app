@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Event Management</title>
+<title>LSD PL Operation</title>
 <link rel="manifest" href="./manifest.json">
 <meta name="theme-color" content="#0B3866">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Event Mgmt">
+<meta name="apple-mobile-web-app-title" content="LSD PL Operation">
 <link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -185,21 +185,23 @@
     .role-card{width:100%;max-width:320px;}
   }
   /* ---------- Production calendar (heat-map) ---------- */
-  .cal-wrap{border:1px solid var(--border);border-radius:8px;padding:9px;margin-bottom:14px;background:#fff;max-width:360px;}
-  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;}
-  .cal-head .cal-title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:12.5px;color:var(--navy);}
-  .cal-nav{border:1px solid var(--border);background:#fff;border-radius:5px;cursor:pointer;padding:2px 8px;font-size:13px;color:var(--ink-soft);}
+  .cal-wrap{border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px;background:#fff;}
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .cal-head .cal-title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;color:var(--navy);}
+  .cal-nav{border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;padding:4px 10px;font-size:14px;color:var(--ink-soft);}
   .cal-nav:hover{background:var(--blue-pale);}
-  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
-  .cal-dow{text-align:center;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);padding:1px 0;}
-  .cal-day{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:5px;font-size:11px;cursor:pointer;user-select:none;border:2px solid transparent;line-height:1;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+  .cal-dow{text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);padding:2px 0;}
+  .cal-day{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:6px;font-size:12.5px;cursor:pointer;user-select:none;border:2px solid transparent;line-height:1.1;}
   .cal-day.empty-cell{cursor:default;background:none;}
-  .cal-day .cal-count{font-size:8px;opacity:0.85;margin-top:1px;}
+  .cal-day .cal-count{font-size:9px;opacity:0.85;margin-top:1px;}
   .cal-day.today{border-color:var(--navy);}
-  .cal-day.sel{border-color:var(--amber);box-shadow:0 0 0 1px var(--amber) inset;}
-  .cal-legend{display:flex;align-items:center;gap:4px;font-size:9.5px;color:var(--ink-soft);margin-top:7px;flex-wrap:wrap;}
-  .cal-legend .sw{width:11px;height:11px;border-radius:3px;display:inline-block;}
-  .cal-hint{font-size:9.5px;color:var(--ink-soft);margin-top:5px;}
+  /* Selected days get a light-yellow wash that overrides the heat-map
+     shade, so the selection is obvious even on a dark-green busy day. */
+  .cal-day.sel{border-color:var(--amber);background:#FFF3C4 !important;color:var(--ink) !important;}
+  .cal-legend{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--ink-soft);margin-top:10px;flex-wrap:wrap;}
+  .cal-legend .sw{width:14px;height:14px;border-radius:3px;display:inline-block;}
+  .cal-hint{font-size:10.5px;color:var(--ink-soft);margin-top:6px;}
   @keyframes spin{to{transform:rotate(360deg);}}
   #globalLoadingIndicator{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:400;background:var(--navy);color:#fff;padding:9px 18px;border-radius:24px;font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:9px;box-shadow:0 4px 16px rgba(11,56,102,0.35);}
   #globalLoadingIndicator .spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,0.4);border-top-color:#fff;border-radius:50%;display:inline-block;animation:spin 0.7s linear infinite;}
@@ -249,7 +251,7 @@
     <div class="band-left" onclick="goHomeReset()" style="cursor:pointer;" title="Back to home">
       <div class="band-mark" id="bandMark">EM</div>
       <div>
-        <h1 id="bandTitle">Event Management</h1>
+        <h1 id="bandTitle">LSD PL Operation</h1>
         <p id="bandSubtitle">From event creation to dispatch — the entire workflow in one place.</p>
       </div>
     </div>
@@ -416,10 +418,6 @@
               <span class="meta" id="prFilterHint"></span>
             </div>
             <div id="prOrderedItemsList" class="friendly-note-card"></div>
-            <div class="f" style="max-width:340px;">
-              <label>🍲 For Menu Item (optional)</label>
-              <select id="prForItemSelect"><option value="">— Not linked to a specific dish —</option></select>
-            </div>
           </div>
 
           <div class="friendly-section-label">🧾 Raw Materials Needed (To Send to Purchase)</div>
@@ -430,16 +428,6 @@
           </table>
           </div>
           <button class="add-row-btn" onclick="addProdRow()">+ Add Item</button>
-          <div style="margin:-8px 0 16px;">
-            <a onclick="toggleAddRawMaterial('pr')" style="font-size:12px;color:var(--blue);cursor:pointer;text-decoration:underline;">+ Add a new raw material to the list</a>
-            <div id="prAddItemRow" class="hidden row2" style="margin-top:10px;align-items:flex-end;">
-              <div class="f" style="margin-bottom:0;"><label>Item Name</label><input type="text" id="prNewItemName" placeholder="e.g. Cardamom"></div>
-              <div class="f" style="margin-bottom:0;display:flex;gap:8px;align-items:flex-end;">
-                <div style="flex:1;"><label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-soft);font-weight:600;margin-bottom:5px;">Unit</label><input type="text" id="prNewItemUnit" placeholder="kg"></div>
-                <button class="btn small" onclick="addNewRawMaterial('pr')">Add</button>
-              </div>
-            </div>
-          </div>
 
           <div class="f"><label>💬 Note (optional)</label><textarea id="prNote" rows="2" placeholder="Any additional details for Purchase"></textarea></div>
 
@@ -630,16 +618,6 @@
     </table>
     </div>
     <button class="add-row-btn" onclick="addBillRow()">+ Add Item</button>
-    <div style="margin:-8px 0 16px;">
-      <a onclick="toggleAddRawMaterial('bill')" style="font-size:12px;color:var(--blue);cursor:pointer;text-decoration:underline;">+ Add a new raw material to the list</a>
-      <div id="billAddItemRow" class="hidden row2" style="margin-top:10px;align-items:flex-end;">
-        <div class="f" style="margin-bottom:0;"><label>Item Name</label><input type="text" id="billNewItemName" placeholder="e.g. Cardamom"></div>
-        <div class="f" style="margin-bottom:0;display:flex;gap:8px;align-items:flex-end;">
-          <div style="flex:1;"><label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--ink-soft);font-weight:600;margin-bottom:5px;">Unit</label><input type="text" id="billNewItemUnit" placeholder="kg"></div>
-          <button class="btn small" onclick="addNewRawMaterial('bill')">Add</button>
-        </div>
-      </div>
-    </div>
 
     <div style="text-align:right;font-weight:700;margin:6px 0 16px;font-size:14px;color:var(--navy);">Bill Total: ₹<span id="billTotalDisplay">0</span></div>
 
@@ -989,7 +967,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 /* Same placeholder-filled defaults Code.gs used to fall back on when a
    setting had never been saved yet. */
 const DEFAULT_SETTINGS_ = {
-  app_title: 'Event Management',
+  app_title: 'LSD PL Operation',
   app_subtitle: 'From event creation to dispatch — the entire workflow in one place.',
   logo_initials: 'EM',
   card_event_title: 'Event Creation', card_event_desc: 'Create events and assign items to chefs',
@@ -1630,8 +1608,11 @@ const API_IMPL_ = {
       const it = originalItems[idx];
       const delta = issuedDeltas[idx] || {};
       let addQty = parseFloat(delta.issueQty) || 0;
+      // Deliberately NOT capped to what's in stock: the store often hands
+      // out material that physically arrived before its purchase bill was
+      // entered. The item simply goes negative and is flagged in red at the
+      // top of the Store list until a bill brings it back up.
       const available = stockMap.hasOwnProperty(String(it.name).toLowerCase()) ? stockMap[String(it.name).toLowerCase()] : 0;
-      if (addQty > available) addQty = Math.max(0, available);
       actualIssuedAmounts[idx] = addQty;
       const prevIssued = parseFloat(it.issuedQty) || 0;
       const newIssued = prevIssued + addQty;
@@ -2174,7 +2155,7 @@ function validateItemAcInput_(input) {
     input.title = '';
   } else {
     input.classList.add('invalid-item');
-    input.title = 'Not in the raw material list — pick from the dropdown, or use "+ Add a new raw material to the list" first.';
+    input.title = 'Not in the raw material list — please pick it from the dropdown.';
   }
 }
 
@@ -2426,7 +2407,7 @@ function enterDept(deptKey) {
 
     document.getElementById('switchRoleBar').classList.remove('hidden');
     document.getElementById('currentDeptBadge').textContent = currentDeptLabel;
-    document.title = currentDeptLabel + ' — ' + (appConfig && appConfig.appTitle ? appConfig.appTitle : 'Event Management');
+    document.title = currentDeptLabel + ' — ' + (appConfig && appConfig.appTitle ? appConfig.appTitle : 'LSD PL Operation');
     document.querySelectorAll('.dept-view').forEach(function (el) { el.classList.remove('active'); });
     target.classList.add('active');
 
@@ -2472,7 +2453,7 @@ function showRoleScreen(fromPopState) {
   stopProdHeadPolling_();
   stopApprovePolling_();
   stopAdminRequestsPolling_();
-  document.title = (appConfig && appConfig.appTitle) ? appConfig.appTitle : 'Event Management';
+  document.title = (appConfig && appConfig.appTitle) ? appConfig.appTitle : 'LSD PL Operation';
   document.getElementById('currentDeptBadge').textContent = '';
   document.getElementById('switchRoleBar').classList.add('hidden');
   document.getElementById('tabsBar').classList.add('hidden');
@@ -2746,22 +2727,17 @@ async function loadApprovalView() {
 
 async function issueItems(id) {
   const rows = document.querySelectorAll('[id^="issue-' + id + '-"]');
-  let overLimit = null;
+  let willGoNegative = false;
   const deltas = Array.prototype.slice.call(rows).map(function (input) {
     const idx = input.id.split('-').pop();
     const remEl = document.getElementById('rem-' + id + '-' + idx);
     const val = parseFloat(input.value) || 0;
     const max = parseFloat(input.dataset.max) || 0;
-    if (val > max) overLimit = { val: val, max: max };
+    if (val > max) willGoNegative = true;
     return { issueQty: input.value.trim(), remark: remEl ? remEl.value.trim() : '' };
   });
 
-  if (overLimit) {
-    showBanner('approveBanner', 'Cannot issue more than what is available in Store (max ' + overLimit.max + ').', 'err');
-    return;
-  }
-
-  showBanner('approveBanner', 'Processing...', 'wait');
+  showBanner('approveBanner', willGoNegative ? 'Issuing more than stock — item(s) will show negative until a bill is entered...' : 'Processing...', 'wait');
   try {
     const result = await gsRun('issueProductionItems', id, deltas);
     const msg = result.status === 'approved' ? 'Fully issued — an email has been sent to Production.'
@@ -2885,9 +2861,25 @@ async function loadStock() {
 function renderStockBody_(list) {
   const body = document.getElementById('stockBody');
   if (!list.length) { body.innerHTML = '<tr><td colspan="9" class="empty">No items match your search.</td></tr>'; return; }
-  body.innerHTML = list.map(function (it) {
-    return '<tr' + (it.isLow ? ' style="background:#FBEAEA;"' : '') + '>' +
-      '<td><a onclick="openJourneyModal(\'' + escapeAttr_(it.name) + '\')" style="color:var(--blue);cursor:pointer;text-decoration:underline;">' + it.name + '</a> <span class="meta">(' + it.unit + ')</span></td>' +
+
+  // Items issued beyond what was in stock sit at negative closing until a
+  // purchase bill brings them back up. Float those to the top so they're
+  // impossible to miss.
+  const sorted = list.slice().sort(function (a, b) {
+    const an = (parseFloat(a.closing) || 0) < 0 ? 0 : 1;
+    const bn = (parseFloat(b.closing) || 0) < 0 ? 0 : 1;
+    if (an !== bn) return an - bn;
+    return 0;
+  });
+
+  body.innerHTML = sorted.map(function (it) {
+    const closingNum = parseFloat(it.closing) || 0;
+    const isNegative = closingNum < 0;
+    const rowStyle = isNegative
+      ? ' style="background:#F7D4D4;color:#8B1A1A;font-weight:600;"'
+      : (it.isLow ? ' style="background:#FBEAEA;"' : '');
+    return '<tr' + rowStyle + '>' +
+      '<td><a onclick="openJourneyModal(\'' + escapeAttr_(it.name) + '\')" style="color:' + (isNegative ? '#8B1A1A' : 'var(--blue)') + ';cursor:pointer;text-decoration:underline;">' + it.name + '</a> <span class="meta"' + (isNegative ? ' style="color:#8B1A1A;"' : '') + '>(' + it.unit + ')</span></td>' +
       '<td>' + it.opening + '</td>' +
       '<td>' + it.purchased + '</td>' +
       '<td>' + it.used + '</td>' +
@@ -2896,9 +2888,11 @@ function renderStockBody_(list) {
       '<td>' + (it.stockValue ? '₹' + it.stockValue.toLocaleString('en-IN') : '—') + '</td>' +
       '<td><input class="stock-qty-input" type="text" id="stock-min-' + it.rowIndex + '" value="' + it.minQty + '" placeholder="—"> ' +
       '<a class="stock-update-btn" onclick="updateStockMinQtyClick(' + it.rowIndex + ')">set</a></td>' +
-      '<td>' + (it.isLow
-        ? '<span class="status rejected">Action Needed</span>'
-        : (it.minQty !== '' ? '<span class="status approved">OK</span>' : '<span class="meta">No threshold set</span>')) + '</td>' +
+      '<td>' + (isNegative
+        ? '<span class="status rejected" style="background:#8B1A1A;color:#fff;">Bill Pending</span>'
+        : (it.isLow
+          ? '<span class="status rejected">Action Needed</span>'
+          : (it.minQty !== '' ? '<span class="status approved">OK</span>' : '<span class="meta">No threshold set</span>'))) + '</td>' +
       '</tr>';
   }).join('');
 }
@@ -3040,7 +3034,7 @@ async function submitBillClick() {
 
   const invalidBillItems = findInvalidItemNames_(items);
   if (invalidBillItems.length) {
-    banner.textContent = 'Not in the raw material list: ' + invalidBillItems.join(', ') + ' — pick from the dropdown, or use "+ Add a new raw material to the list" first.';
+    banner.textContent = 'Not in the raw material list: ' + invalidBillItems.join(', ') + ' — please pick from the dropdown.';
     banner.className = 'banner show err';
     return;
   }
@@ -3190,7 +3184,7 @@ async function submitPurchaseRequestClick() {
   }
   const invalidPoItems = findInvalidItemNames_(items);
   if (invalidPoItems.length) {
-    showBanner('poBanner', 'Not in the raw material list: ' + invalidPoItems.join(', ') + ' — pick from the dropdown, or use "+ Add a new raw material to the list" first.', 'err');
+    showBanner('poBanner', 'Not in the raw material list: ' + invalidPoItems.join(', ') + ' — please pick from the dropdown.', 'err');
     return;
   }
 
@@ -4333,16 +4327,6 @@ function renderFilteredItems() {
       const chefs = itemChefsArray_(it);
       return '<tr><td>' + it.name + '</td><td>' + it.qty + '</td><td>' + it.unit + '</td><td>' + (chefs.length ? chefs.join(', ') : '—') + '</td><td class="meta">' + (it.description || '') + '</td></tr>';
     }).join('') + '</tbody></table>';
-
-  const forItemSel = document.getElementById('prForItemSelect');
-  const currentForItem = forItemSel.value;
-  const myDishes = kitchen
-    ? prCurrentEventItems.filter(function (it) { return itemChefsArray_(it).some(function (c) { return (c || '').trim().toLowerCase() === kitchen; }); })
-    : prCurrentEventItems;
-  forItemSel.innerHTML = '<option value="">— Not linked to a specific dish —</option>' + myDishes.map(function (it) {
-    return '<option value="' + escapeAttr_(it.name) + '">' + it.name + '</option>';
-  }).join('');
-  if (currentForItem) forItemSel.value = currentForItem;
 }
 
 async function submitProdRequest() {
@@ -4370,7 +4354,7 @@ async function submitProdRequest() {
     return !rawMaterialsList.some(function (rm) { return String(rm.name).toLowerCase() === it.name.toLowerCase(); });
   })[0];
   if (unknownItem) {
-    showBanner('prBanner', '"' + unknownItem.name + '" is not in the raw material list. Please pick it from the dropdown, or use "+ Add a new raw material to the list" first.', 'err');
+    showBanner('prBanner', '"' + unknownItem.name + '" is not in the raw material list. Please pick it from the dropdown.', 'err');
     return;
   }
   if (items.length === 0) {
@@ -4378,7 +4362,7 @@ async function submitProdRequest() {
   }
   const invalidItems = findInvalidItemNames_(items);
   if (invalidItems.length) {
-    showBanner('prBanner', 'Not in the raw material list: ' + invalidItems.join(', ') + ' — pick from the dropdown, or use "+ Add a new raw material to the list" first.', 'err');
+    showBanner('prBanner', 'Not in the raw material list: ' + invalidItems.join(', ') + ' — please pick from the dropdown.', 'err');
     return;
   }
 
@@ -4386,7 +4370,7 @@ async function submitProdRequest() {
   btn.disabled = true;
   showBanner('prBanner', 'Sending...', 'wait');
 
-  const forItem = document.getElementById('prForItemSelect') ? document.getElementById('prForItemSelect').value.trim() : '';
+  const forItem = ''; // the "For Menu Item" selector was removed from this form
 
   try {
     await gsRun('submitProductionRequest', { reqBy, kitchen, note, items, eventId, eventName, forItem });
@@ -4394,7 +4378,6 @@ async function submitProdRequest() {
     document.getElementById('prItemsBody').innerHTML = '';
     for (let i = 0; i < 3; i++) addProdRow();
     document.getElementById('prNote').value = '';
-    if (document.getElementById('prForItemSelect')) document.getElementById('prForItemSelect').value = '';
     loadMyProductionRequests();
     loadPendingTasksForProduction();
     setTimeout(closeNewProdRequestForm, 1200);
@@ -5697,13 +5680,26 @@ async function loadAdminStock() {
   try { stock = await gsRun('getStockPeriodReport', range.from, range.to); } catch (e) {}
   if (!stock) stock = [];
   if (!stock.length) { body.innerHTML = '<tr><td colspan="9" class="empty">Store is empty.</td></tr>'; return; }
-  body.innerHTML = stock.map(function (it) {
-    return '<tr' + (it.isLow ? ' style="background:#FBEAEA;"' : '') + '><td>' + it.name + ' <span class="meta">(' + it.unit + ')</span></td>' +
+
+  const sorted = stock.slice().sort(function (a, b) {
+    const an = (parseFloat(a.closing) || 0) < 0 ? 0 : 1;
+    const bn = (parseFloat(b.closing) || 0) < 0 ? 0 : 1;
+    return an - bn;
+  });
+
+  body.innerHTML = sorted.map(function (it) {
+    const isNegative = (parseFloat(it.closing) || 0) < 0;
+    const rowStyle = isNegative
+      ? ' style="background:#F7D4D4;color:#8B1A1A;font-weight:600;"'
+      : (it.isLow ? ' style="background:#FBEAEA;"' : '');
+    return '<tr' + rowStyle + '><td>' + it.name + ' <span class="meta"' + (isNegative ? ' style="color:#8B1A1A;"' : '') + '>(' + it.unit + ')</span></td>' +
       '<td>' + it.opening + '</td><td>' + it.purchased + '</td><td>' + it.used + '</td><td><b>' + it.closing + '</b></td>' +
       '<td>' + (it.avgPrice ? '₹' + it.avgPrice : '—') + '</td>' +
       '<td>' + (it.stockValue ? '₹' + it.stockValue.toLocaleString('en-IN') : '—') + '</td>' +
       '<td>' + (it.minQty !== '' ? it.minQty : '—') + '</td>' +
-      '<td>' + (it.isLow ? '<span class="status rejected">Action Needed</span>' : (it.minQty !== '' ? '<span class="status approved">OK</span>' : '<span class="meta">—</span>')) + '</td></tr>';
+      '<td>' + (isNegative
+        ? '<span class="status rejected" style="background:#8B1A1A;color:#fff;">Bill Pending</span>'
+        : (it.isLow ? '<span class="status rejected">Action Needed</span>' : (it.minQty !== '' ? '<span class="status approved">OK</span>' : '<span class="meta">—</span>'))) + '</td></tr>';
   }).join('');
 }
 
