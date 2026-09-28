@@ -184,6 +184,22 @@
     .role-options{gap:12px;}
     .role-card{width:100%;max-width:320px;}
   }
+  /* ---------- Production calendar (heat-map) ---------- */
+  .cal-wrap{border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px;background:#fff;}
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .cal-head .cal-title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;color:var(--navy);}
+  .cal-nav{border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;padding:4px 10px;font-size:14px;color:var(--ink-soft);}
+  .cal-nav:hover{background:var(--blue-pale);}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+  .cal-dow{text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);padding:2px 0;}
+  .cal-day{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:6px;font-size:12.5px;cursor:pointer;user-select:none;border:2px solid transparent;line-height:1.1;}
+  .cal-day.empty-cell{cursor:default;background:none;}
+  .cal-day .cal-count{font-size:9px;opacity:0.85;margin-top:1px;}
+  .cal-day.today{border-color:var(--navy);}
+  .cal-day.sel{border-color:var(--amber);box-shadow:0 0 0 1px var(--amber) inset;}
+  .cal-legend{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--ink-soft);margin-top:10px;flex-wrap:wrap;}
+  .cal-legend .sw{width:14px;height:14px;border-radius:3px;display:inline-block;}
+  .cal-hint{font-size:10.5px;color:var(--ink-soft);margin-top:6px;}
   @keyframes spin{to{transform:rotate(360deg);}}
   #globalLoadingIndicator{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:400;background:var(--navy);color:#fff;padding:9px 18px;border-radius:24px;font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:9px;box-shadow:0 4px 16px rgba(11,56,102,0.35);}
   #globalLoadingIndicator .spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,0.4);border-top-color:#fff;border-radius:50%;display:inline-block;animation:spin 0.7s linear infinite;}
@@ -449,22 +465,7 @@
           <span>Today's Production</span>
           <button class="btn small" onclick="downloadProdListCSV()">⬇ Excel Download</button>
         </h3>
-        <div class="row2" style="max-width:700px;align-items:flex-end;">
-          <div class="f">
-            <label>Date Range</label>
-            <select id="prodListRange" onchange="onProdListRangeChange()">
-              <option value="today">Today</option>
-              <option value="tomorrow">Tomorrow</option>
-              <option value="yesterday">Yesterday</option>
-              <option value="lastweek">Last Week</option>
-              <option value="lastmonth">Last Month</option>
-              <option value="custom">Custom</option>
-            </select>
-          </div>
-          <div class="f" id="prodListFromWrap" style="display:none;"><label>From</label><input type="date" id="prodListFrom"></div>
-          <div class="f" id="prodListToWrap" style="display:none;"><label>To</label><input type="date" id="prodListTo"></div>
-          <div><button class="btn small" onclick="loadProdList()">Apply</button></div>
-        </div>
+        <div id="prodCalendar"></div>
         <div class="table-wrap"><table class="dispatch-table" id="prodListTable">
           <thead><tr><th>Date</th><th>Event</th><th>Menu Item</th><th>Qty</th><th>Unit</th><th>Departments</th><th>Status</th></tr></thead>
           <tbody id="prodListBody"><tr><td colspan="7" class="empty">Loading...</td></tr></tbody>
@@ -3785,7 +3786,7 @@ function switchProdTab(tab) {
   document.querySelectorAll('#dept-production .subview').forEach(function (el) { el.classList.remove('active'); });
   document.getElementById('prod-' + tab).classList.add('active');
   if (tab === 'ordering') { loadPendingTasksForProduction(); loadMyProductionRequests(); }
-  if (tab === 'list') loadProdList();
+  if (tab === 'list') { loadCalendarEventCounts_(); loadProdList(); }
   if (tab === 'deptlist') populateDeptProdDeptSelect();
 }
 
@@ -3829,11 +3830,143 @@ function computeDateRange_(rangeValue, fromInputId, toInputId) {
   return { from: from, to: to };
 }
 
-function onProdListRangeChange() {
-  const isCustom = document.getElementById('prodListRange').value === 'custom';
-  document.getElementById('prodListFromWrap').style.display = isCustom ? '' : 'none';
-  document.getElementById('prodListToWrap').style.display = isCustom ? '' : 'none';
-  if (!isCustom) loadProdList();
+/* ---------- Production calendar (heat-map date picker) ---------- */
+/* Replaces the old "Date Range" dropdown on the Menu List tab. Each day
+   is shaded by how many events dispatch that day (darker = busier, grey
+   = none). Single click picks a start date, a second single click
+   completes the range; a double click jumps straight to that one day. */
+
+let calMonth_ = new Date();            // which month the grid is showing
+let calRangeStart_ = null;             // ISO string, or null
+let calRangeEnd_ = null;               // ISO string, or null
+let calEventCounts_ = {};              // ISO -> number of events dispatching that day
+let calClickTimer_ = null;             // distinguishes single from double click
+
+function calShade_(count, maxCount) {
+  if (!count) return { bg: '#EDF1F5', fg: 'var(--ink-soft)' };  // grey: nothing scheduled
+  // Ramp from light to dark green, scaled against the busiest day shown.
+  const ratio = maxCount > 1 ? (count - 1) / (maxCount - 1) : 1;
+  const shades = ['#D6F0DF', '#A9E0BE', '#73CB9B', '#40B277', '#1E7A4C'];
+  const idx = Math.min(shades.length - 1, Math.round(ratio * (shades.length - 1)));
+  return { bg: shades[idx], fg: idx >= 3 ? '#fff' : 'var(--ink)' };
+}
+
+function renderProdCalendar_() {
+  const box = document.getElementById('prodCalendar');
+  if (!box) return;
+
+  const year = calMonth_.getFullYear();
+  const month = calMonth_.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const startWeekday = firstDay.getDay();
+  const todayISO = isoOfDate_(new Date());
+
+  // Scale the shading against the busiest day in THIS month only, so a
+  // quiet month still shows useful contrast instead of all-pale cells.
+  let maxCount = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const iso = isoOfDate_(new Date(year, month, d));
+    if ((calEventCounts_[iso] || 0) > maxCount) maxCount = calEventCounts_[iso];
+  }
+
+  const monthLabel = firstDay.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+  const dows = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+  let cells = dows.map(function (d) { return '<div class="cal-dow">' + d + '</div>'; }).join('');
+  for (let i = 0; i < startWeekday; i++) cells += '<div class="cal-day empty-cell"></div>';
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const iso = isoOfDate_(new Date(year, month, d));
+    const count = calEventCounts_[iso] || 0;
+    const shade = calShade_(count, maxCount);
+    const inRange = calRangeStart_ && calRangeEnd_ && iso >= calRangeStart_ && iso <= calRangeEnd_;
+    const isEdge = iso === calRangeStart_ || iso === calRangeEnd_;
+    const classes = ['cal-day'];
+    if (iso === todayISO) classes.push('today');
+    if (inRange || isEdge) classes.push('sel');
+    cells += '<div class="' + classes.join(' ') + '" style="background:' + shade.bg + ';color:' + shade.fg + ';"' +
+      ' onclick="onCalDayClick_(\'' + iso + '\')" ondblclick="onCalDayDblClick_(\'' + iso + '\')">' +
+      '<div>' + d + '</div>' +
+      (count ? '<div class="cal-count">' + count + '</div>' : '') +
+      '</div>';
+  }
+
+  const rangeLabel = (calRangeStart_ && calRangeEnd_)
+    ? (calRangeStart_ === calRangeEnd_
+        ? formatDateDisplay(calRangeStart_)
+        : formatDateDisplay(calRangeStart_) + ' → ' + formatDateDisplay(calRangeEnd_))
+    : (calRangeStart_ ? formatDateDisplay(calRangeStart_) + ' → …pick end date' : 'Nothing selected');
+
+  box.innerHTML =
+    '<div class="cal-wrap">' +
+    '<div class="cal-head">' +
+    '<button class="cal-nav" onclick="calPrevMonth_()">‹</button>' +
+    '<span class="cal-title">' + monthLabel + '</span>' +
+    '<button class="cal-nav" onclick="calNextMonth_()">›</button>' +
+    '</div>' +
+    '<div class="cal-grid">' + cells + '</div>' +
+    '<div class="cal-legend">' +
+    '<span class="sw" style="background:#EDF1F5;"></span><span>No events</span>' +
+    '<span class="sw" style="background:#D6F0DF;margin-left:6px;"></span>' +
+    '<span class="sw" style="background:#73CB9B;"></span>' +
+    '<span class="sw" style="background:#1E7A4C;"></span><span>Busier</span>' +
+    '<span style="margin-left:auto;font-weight:600;color:var(--navy);">' + rangeLabel + '</span>' +
+    '</div>' +
+    '<div class="cal-hint">Click a date to start a range, click another to finish it · Double-click a date for that day only</div>' +
+    '</div>';
+}
+
+function calPrevMonth_() {
+  calMonth_ = new Date(calMonth_.getFullYear(), calMonth_.getMonth() - 1, 1);
+  renderProdCalendar_();
+}
+
+function calNextMonth_() {
+  calMonth_ = new Date(calMonth_.getFullYear(), calMonth_.getMonth() + 1, 1);
+  renderProdCalendar_();
+}
+
+function onCalDayClick_(iso) {
+  // Wait briefly before acting: if a second click lands, it's a
+  // double-click and onCalDayDblClick_ takes over instead.
+  if (calClickTimer_) { clearTimeout(calClickTimer_); calClickTimer_ = null; }
+  calClickTimer_ = setTimeout(function () {
+    calClickTimer_ = null;
+    if (!calRangeStart_ || (calRangeStart_ && calRangeEnd_)) {
+      calRangeStart_ = iso;
+      calRangeEnd_ = null;
+      renderProdCalendar_();
+    } else {
+      if (iso < calRangeStart_) { calRangeEnd_ = calRangeStart_; calRangeStart_ = iso; }
+      else { calRangeEnd_ = iso; }
+      renderProdCalendar_();
+      loadProdList();
+    }
+  }, 260);
+}
+
+function onCalDayDblClick_(iso) {
+  if (calClickTimer_) { clearTimeout(calClickTimer_); calClickTimer_ = null; }
+  calRangeStart_ = iso;
+  calRangeEnd_ = iso;
+  renderProdCalendar_();
+  loadProdList();
+}
+
+/* Counts distinct events per dispatch date, for the heat-map shading. */
+async function loadCalendarEventCounts_() {
+  let events = [];
+  try { events = await gsRun('getAllEvents'); } catch (e) {}
+  if (!events) events = [];
+  const counts = {};
+  events.forEach(function (ev) {
+    const iso = ddmmyyyyToISO_(ev.date);
+    if (!iso) return;
+    counts[iso] = (counts[iso] || 0) + 1;
+  });
+  calEventCounts_ = counts;
+  renderProdCalendar_();
 }
 
 function onDeptProdRangeChange() {
@@ -3874,7 +4007,13 @@ let currentProdListTasks = [];
 async function loadProdList() {
   const body = document.getElementById('prodListBody');
   body.innerHTML = '<tr><td colspan="7" class="empty">Loading...</td></tr>';
-  const range = computeDateRange_(document.getElementById('prodListRange').value, 'prodListFrom', 'prodListTo');
+
+  // Default to today until the person picks something on the calendar.
+  if (!calRangeStart_) {
+    calRangeStart_ = isoOfDate_(new Date());
+    calRangeEnd_ = calRangeStart_;
+  }
+  const range = { from: calRangeStart_, to: calRangeEnd_ || calRangeStart_ };
 
   let events = [], completions = [];
   try { events = await gsRun('getAllEvents'); } catch (e) {}
