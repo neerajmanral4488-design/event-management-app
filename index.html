@@ -185,7 +185,7 @@
     .role-card{width:100%;max-width:320px;}
   }
   /* ---------- Production calendar (heat-map) ---------- */
-  .cal-wrap{border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px;background:#fff;}
+  .cal-wrap{border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px;background:#fff;max-width:380px;}
   .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
   .cal-head .cal-title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;color:var(--navy);}
   .cal-nav{border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;padding:4px 10px;font-size:14px;color:var(--ink-soft);}
@@ -413,10 +413,6 @@
 
           <div id="prEventFilterRow" class="hidden">
             <div class="friendly-section-label">🍽️ Ordered for This Event (Reference)</div>
-            <div style="margin-bottom:8px;">
-              <button class="btn small" id="prShowAllBtn" onclick="toggleShowAllItems()">Show All Event Items</button>
-              <span class="meta" id="prFilterHint"></span>
-            </div>
             <div id="prOrderedItemsList" class="friendly-note-card"></div>
           </div>
 
@@ -3730,7 +3726,6 @@ async function toggleEventStatus(id, status) {
 
 /* ---------- production ---------- */
 let prCurrentEventItems = [];
-let prShowingAll = false;
 
 function addProdRow() {
   const tbody = document.getElementById('prItemsBody');
@@ -3809,11 +3804,10 @@ function computeDateRange_(rangeValue, fromInputId, toInputId) {
   return { from: from, to: to };
 }
 
-/* ---------- Production calendar (heat-map date picker) ---------- */
-/* Replaces the old "Date Range" dropdown on the Menu List tab. Each day
-   is shaded by how many events dispatch that day (darker = busier, grey
-   = none). Single click picks a start date, a second single click
-   completes the range; a double click jumps straight to that one day. */
+/* ---------- Production calendar (date picker) ---------- */
+/* Replaces the old "Date Range" dropdown. Days with at least one event
+   are tinted, days with none stay grey. Single click picks that one day;
+   double click starts a range, and the next click closes it. */
 
 /* Two calendars exist (Menu List and Production), each with its own
    independent selection, so the state is keyed by calendar id. */
@@ -3824,13 +3818,9 @@ const CAL_STATE_ = {
 let calEventCounts_ = {};              // ISO -> number of events dispatching that day (shared)
 let calClickTimer_ = null;             // distinguishes single from double click
 
-function calShade_(count, maxCount) {
+function calShade_(count) {
   if (!count) return { bg: '#EDF1F5', fg: 'var(--ink-soft)' };  // grey: nothing scheduled
-  // Ramp from light to dark green, scaled against the busiest day shown.
-  const ratio = maxCount > 1 ? (count - 1) / (maxCount - 1) : 1;
-  const shades = ['#D6F0DF', '#A9E0BE', '#73CB9B', '#40B277', '#1E7A4C'];
-  const idx = Math.min(shades.length - 1, Math.round(ratio * (shades.length - 1)));
-  return { bg: shades[idx], fg: idx >= 3 ? '#fff' : 'var(--ink)' };
+  return { bg: 'var(--blue-pale)', fg: 'var(--ink)' };          // has events
 }
 
 function renderProdCalendar_(calId) {
@@ -3845,14 +3835,6 @@ function renderProdCalendar_(calId) {
   const startWeekday = firstDay.getDay();
   const todayISO = isoOfDate_(new Date());
 
-  // Scale the shading against the busiest day in THIS month only, so a
-  // quiet month still shows useful contrast instead of all-pale cells.
-  let maxCount = 0;
-  for (let d = 1; d <= daysInMonth; d++) {
-    const iso = isoOfDate_(new Date(year, month, d));
-    if ((calEventCounts_[iso] || 0) > maxCount) maxCount = calEventCounts_[iso];
-  }
-
   const monthLabel = firstDay.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
   const dows = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
@@ -3862,7 +3844,7 @@ function renderProdCalendar_(calId) {
   for (let d = 1; d <= daysInMonth; d++) {
     const iso = isoOfDate_(new Date(year, month, d));
     const count = calEventCounts_[iso] || 0;
-    const shade = calShade_(count, maxCount);
+    const shade = calShade_(count);
     const inRange = st.start && st.end && iso >= st.start && iso <= st.end;
     const isEdge = iso === st.start || iso === st.end;
     const classes = ['cal-day'];
@@ -3891,9 +3873,7 @@ function renderProdCalendar_(calId) {
     '<div class="cal-grid">' + cells + '</div>' +
     '<div class="cal-legend">' +
     '<span class="sw" style="background:#EDF1F5;"></span><span>No events</span>' +
-    '<span class="sw" style="background:#D6F0DF;margin-left:6px;"></span>' +
-    '<span class="sw" style="background:#73CB9B;"></span>' +
-    '<span class="sw" style="background:#1E7A4C;"></span><span>Busier</span>' +
+    '<span class="sw" style="background:var(--blue-pale);margin-left:6px;"></span><span>Has events</span>' +
     '<span style="margin-left:auto;font-weight:600;color:var(--navy);">' + rangeLabel + '</span>' +
     '</div>' +
     '<div class="cal-hint">Click a date for that day · Double-click to start a range, then click the end date</div>' +
@@ -4276,14 +4256,13 @@ async function jumpToEventRequest(eventId, kitchen) {
 
 async function onEventChange() {
   const eventId = document.getElementById('prEventSelect').value;
-  prShowingAll = false;
   if (!eventId) {
     prCurrentEventItems = [];
     document.getElementById('prEventFilterRow').classList.add('hidden');
     return;
   }
   document.getElementById('prEventFilterRow').classList.remove('hidden');
-  document.getElementById('prFilterHint').textContent = 'Loading...';
+  document.getElementById('prOrderedItemsList').innerHTML = '<p class="empty" style="padding:8px 0;">Loading...</p>';
   let ev = null;
   try { ev = await gsRun('getEventById', eventId); } catch (e) {}
   prCurrentEventItems = (ev && ev.items) ? ev.items : [];
@@ -4294,38 +4273,29 @@ function onKitchenChange() {
   if (document.getElementById('prEventSelect').value) renderFilteredItems();
 }
 
-function toggleShowAllItems() {
-  prShowingAll = !prShowingAll;
-  renderFilteredItems();
-}
-
 function renderFilteredItems() {
   const kitchen = document.getElementById('prKitchen').value.trim().toLowerCase();
-  const btn = document.getElementById('prShowAllBtn');
-  const hint = document.getElementById('prFilterHint');
 
-  let toShow;
-  if (prShowingAll || !kitchen) {
-    toShow = prCurrentEventItems;
-    btn.textContent = 'Show Only My Kitchen\'s Items';
-    hint.textContent = kitchen ? '' : 'Enter your kitchen name to auto-filter.';
-  } else {
-    toShow = prCurrentEventItems.filter(function (it) {
-      return itemChefsArray_(it).some(function (c) { return (c || '').trim().toLowerCase() === kitchen; });
-    });
-    btn.textContent = 'Show All Event Items';
-    hint.textContent = toShow.length + ' item(s) assigned to "' + document.getElementById('prKitchen').value.trim() + '".';
-  }
+  // Always scoped to the selected department — the "show all event items"
+  // toggle was removed, since a kitchen only ever needs its own items.
+  const toShow = kitchen
+    ? prCurrentEventItems.filter(function (it) {
+        return itemChefsArray_(it).some(function (c) { return (c || '').trim().toLowerCase() === kitchen; });
+      })
+    : [];
 
   const box = document.getElementById('prOrderedItemsList');
-  if (!toShow.length) {
-    box.innerHTML = '<p class="empty" style="padding:8px 0;">No items found.</p>';
+  if (!kitchen) {
+    box.innerHTML = '<p class="empty" style="padding:8px 0;">Select your kitchen above to see its items.</p>';
     return;
   }
-  box.innerHTML = '<table class="avail" style="margin:0;table-layout:fixed;"><thead><tr><th style="width:220px;">Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th style="width:150px;">Department</th><th>Description</th></tr></thead><tbody>' +
+  if (!toShow.length) {
+    box.innerHTML = '<p class="empty" style="padding:8px 0;">No items assigned to this department for this event.</p>';
+    return;
+  }
+  box.innerHTML = '<table class="avail" style="margin:0;table-layout:fixed;"><thead><tr><th style="width:220px;">Item</th><th style="width:70px;">Qty</th><th style="width:70px;">Unit</th><th>Description</th></tr></thead><tbody>' +
     toShow.map(function (it) {
-      const chefs = itemChefsArray_(it);
-      return '<tr><td>' + it.name + '</td><td>' + it.qty + '</td><td>' + it.unit + '</td><td>' + (chefs.length ? chefs.join(', ') : '—') + '</td><td class="meta">' + (it.description || '') + '</td></tr>';
+      return '<tr><td>' + it.name + '</td><td>' + it.qty + '</td><td>' + it.unit + '</td><td class="meta">' + (it.description || '') + '</td></tr>';
     }).join('') + '</tbody></table>';
 }
 
