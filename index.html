@@ -203,6 +203,14 @@
   .cal-legend{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--ink-soft);margin-top:10px;flex-wrap:wrap;}
   .cal-legend .sw{width:14px;height:14px;border-radius:3px;display:inline-block;}
   .cal-hint{font-size:10.5px;color:var(--ink-soft);margin-top:6px;}
+  /* ---------- Toast notifications ---------- */
+  #toastHost_{position:fixed;top:0;left:0;right:0;z-index:9000;display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 12px 0;pointer-events:none;}
+  .toast{display:flex;align-items:flex-start;gap:9px;max-width:min(92vw,440px);padding:11px 15px;border-radius:10px;font-size:13.5px;font-weight:500;line-height:1.35;box-shadow:0 6px 22px rgba(11,56,102,0.22);opacity:0;transform:translateY(-14px);transition:opacity .22s ease,transform .22s ease;pointer-events:auto;word-break:break-word;}
+  .toast.in{opacity:1;transform:translateY(0);}
+  .toast-icon{flex-shrink:0;font-size:14px;line-height:1.3;}
+  .toast.ok{background:#E7F5EC;color:#14602F;border:1px solid #BFE3CC;}
+  .toast.err{background:#FBEAEA;color:#8B1A1A;border:1px solid #EFC4C4;}
+  .toast.wait{background:#FBEFDA;color:#7A4E06;border:1px solid #F0DBAE;}
   @keyframes spin{to{transform:rotate(360deg);}}
   #globalLoadingIndicator{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:400;background:var(--navy);color:#fff;padding:9px 18px;border-radius:24px;font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:9px;box-shadow:0 4px 16px rgba(11,56,102,0.35);}
   #globalLoadingIndicator .spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,0.4);border-top-color:#fff;border-radius:50%;display:inline-block;animation:spin 0.7s linear infinite;}
@@ -2622,11 +2630,75 @@ function addPoRow() {
 }
 for (let i = 0; i < 3; i++) addPoRow();
 
-function showBanner(id, text, type) {
-  const el = document.getElementById(id);
-  el.textContent = text;
-  el.className = 'banner show ' + type;
+/* ---------- Toast notifications ---------- */
+/* Messages used to render as inline banners inside whichever form fired
+   them — easy to miss, since that spot is often scrolled off screen, and
+   an old message just sat there so a new one didn't read as "new".
+   Everything now surfaces as a floating toast instead.
+
+   Rather than rewrite ~90 call sites, the observer below watches for any
+   .banner element being switched on and converts it into a toast. That
+   covers both showBanner() and the many places that set
+   `el.className = 'banner show ...'` directly. */
+
+const TOAST_PERSISTENT_IDS_ = ['lowStockBanner']; // genuinely ambient warnings — leave these inline
+
+function ensureToastHost_() {
+  let host = document.getElementById('toastHost_');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'toastHost_';
+    document.body.appendChild(host);
+  }
+  return host;
 }
+
+function showToast_(text, type) {
+  if (!text || !String(text).trim()) return;
+  const host = ensureToastHost_();
+  const icon = type === 'ok' ? '✅' : (type === 'err' ? '⚠️' : '⏳');
+
+  // A "processing" toast is replaced by whatever result follows it, so
+  // the person doesn't end up reading a stale "Saving..." next to "Saved."
+  const existingWait = host.querySelector('.toast.wait');
+  if (existingWait) existingWait.remove();
+
+  const el = document.createElement('div');
+  el.className = 'toast ' + (type || 'ok');
+  el.innerHTML = '<span class="toast-icon">' + icon + '</span><span>' + escapeAttr_(text) + '</span>';
+  host.appendChild(el);
+  requestAnimationFrame(function () { el.classList.add('in'); });
+
+  if (type !== 'wait') {
+    const life = type === 'err' ? 6000 : 3200;
+    setTimeout(function () {
+      el.classList.remove('in');
+      setTimeout(function () { el.remove(); }, 260);
+    }, life);
+  }
+}
+
+function showBanner(id, text, type) {
+  if (TOAST_PERSISTENT_IDS_.indexOf(id) !== -1) {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = text; el.className = 'banner show ' + type; }
+    return;
+  }
+  showToast_(text, type);
+}
+
+/* Catches the call sites that set a banner's class directly. */
+new MutationObserver(function (records) {
+  records.forEach(function (r) {
+    const el = r.target;
+    if (!el.classList || !el.classList.contains('banner')) return;
+    if (!el.classList.contains('show')) return;
+    if (TOAST_PERSISTENT_IDS_.indexOf(el.id) !== -1) return;
+    const type = el.classList.contains('ok') ? 'ok' : (el.classList.contains('err') ? 'err' : 'wait');
+    showToast_(el.textContent, type);
+    el.classList.remove('show'); // keep the inline copy hidden — the toast is the notification now
+  });
+}).observe(document.body, { attributes: true, attributeFilter: ['class'], subtree: true });
 
 /* ---------- approval view ---------- */
 async function loadApprovalView() {
