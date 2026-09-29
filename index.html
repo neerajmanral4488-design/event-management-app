@@ -53,6 +53,7 @@
   table.items th{background:var(--blue-pale);color:var(--navy);font-size:10.5px;text-transform:uppercase;letter-spacing:0.04em;text-align:left;padding:8px 7px;border:1px solid var(--border);}
   table.items td{border:1px solid var(--border);padding:2px;word-wrap:break-word;overflow-wrap:break-word;}
   table.items td input{border:none;background:transparent;width:100%;padding:7px;font-size:13px;}
+  table.items td input.unit-input{background:#EEF2F6;color:var(--ink-soft);cursor:not-allowed;}
   table.items td input:focus{outline:none;background:var(--blue-pale-2);}
   .rm-btn{border:none;background:none;color:var(--red);cursor:pointer;font-size:15px;padding:4px 8px;}
 
@@ -1992,6 +1993,35 @@ function findInvalidItemNames_(items) {
     .map(function (it) { return it.name; });
 }
 
+/* Quantity is mandatory wherever items are ordered/issued — an item with
+   no qty is meaningless downstream (nothing to issue, nothing to cost).
+   Pass the tbody holding the rows; returns true if anything was missing,
+   having highlighted each offending qty box in red. */
+function flagMissingQty_(tbody) {
+  if (!tbody) return false;
+  let missing = false;
+  Array.prototype.slice.call(tbody.querySelectorAll('tr')).forEach(function (tr) {
+    const nameInput = tr.querySelector('.item-ac-input') || tr.querySelector('.item-name-input');
+    const qtyInput = tr.querySelector('.qty-input');
+    if (!nameInput || !qtyInput) return;
+    qtyInput.classList.remove('field-invalid');
+    // Only rows that actually name an item need a quantity — blank
+    // trailing rows are ignored everywhere else too.
+    if (nameInput.value.trim() && !qtyInput.value.trim()) {
+      qtyInput.classList.add('field-invalid');
+      missing = true;
+    }
+  });
+  return missing;
+}
+
+/* Clears the red qty highlight as soon as a value is typed, anywhere. */
+document.addEventListener('input', function (e) {
+  if (e.target.classList && e.target.classList.contains('qty-input') && e.target.value.trim()) {
+    e.target.classList.remove('field-invalid');
+  }
+});
+
 async function loadDepartmentsListGlobal() {
   try { departmentsList = await gsRun('getDepartmentsList'); } catch (e) { departmentsList = []; }
   if (!departmentsList) departmentsList = [];
@@ -2585,7 +2615,7 @@ function addPoRow() {
   tr.innerHTML =
     '<td><div class="item-ac-wrap"><input type="text" class="item-ac-input" placeholder="e.g. Cooking Gas Cylinder" oninput="onItemInput(this)" onfocus="onItemInput(this)" onkeydown="onItemKeydown(event,this)" onblur="onItemBlur(this)"><div class="item-ac-list hidden"></div></div></td>' +
     '<td><input type="text" class="qty-input" placeholder="0"></td>' +
-    '<td><input type="text" class="unit-input" placeholder="kg"></td>' +
+    '<td><input type="text" class="unit-input" readonly tabindex="-1" title="Unit comes from the raw material list and cannot be changed here" placeholder="kg"></td>' +
     '<td><input type="text" class="item-desc-input" placeholder="e.g. urgent"></td>' +
     '<td><button class="rm-btn" onclick="this.closest(\'tr\').remove()">✕</button></td>';
   tbody.appendChild(tr);
@@ -2938,7 +2968,7 @@ function addBillRow() {
   tr.innerHTML =
     '<td><div class="item-ac-wrap"><input type="text" class="item-ac-input" placeholder="e.g. Basmati Rice" oninput="onItemInput(this)" onfocus="onItemInput(this)" onkeydown="onItemKeydown(event,this)" onblur="onItemBlur(this)"><div class="item-ac-list hidden"></div></div></td>' +
     '<td><input type="text" class="qty-input" placeholder="0" oninput="recalcBillRow(this)"></td>' +
-    '<td><input type="text" class="unit-input" placeholder="kg"></td>' +
+    '<td><input type="text" class="unit-input" readonly tabindex="-1" title="Unit comes from the raw material list and cannot be changed here" placeholder="kg"></td>' +
     '<td><input type="text" class="price-input" placeholder="0" oninput="recalcBillRow(this)"></td>' +
     '<td class="line-total" style="text-align:right;padding-right:10px;">0</td>' +
     '<td><input type="text" class="item-desc-input" placeholder="e.g. brand X"></td>' +
@@ -3178,6 +3208,9 @@ async function submitPurchaseRequestClick() {
   if (items.length === 0) {
     showBanner('poBanner', 'Please add at least one item.', 'err'); return;
   }
+  if (flagMissingQty_(document.getElementById('poItemsBody'))) {
+    showBanner('poBanner', 'Please enter a quantity for every item (highlighted in red).', 'err'); return;
+  }
   const invalidPoItems = findInvalidItemNames_(items);
   if (invalidPoItems.length) {
     showBanner('poBanner', 'Not in the raw material list: ' + invalidPoItems.join(', ') + ' — please pick from the dropdown.', 'err');
@@ -3236,7 +3269,7 @@ async function loadMyPoRequests() {
         r.items.map(function (it) {
           return '<tr><td><div class="item-ac-wrap"><input type="text" class="item-ac-input" value="' + escapeAttr_(it.name) + '" oninput="onItemInput(this)" onfocus="onItemInput(this)" onkeydown="onItemKeydown(event,this)" onblur="onItemBlur(this)"><div class="item-ac-list hidden"></div></div></td>' +
             '<td><input type="text" class="qty-input" value="' + escapeAttr_(it.qty) + '"></td>' +
-            '<td><input type="text" class="unit-input" value="' + escapeAttr_(it.unit) + '"></td>' +
+            '<td><input type="text" class="unit-input" readonly tabindex="-1" title="Unit comes from the raw material list and cannot be changed here" value="' + escapeAttr_(it.unit) + '"></td>' +
             '<td><input type="text" class="ed-desc" value="' + escapeAttr_(it.description || '') + '"></td>' +
             '<td><button class="rm-btn" onclick="this.closest(\'tr\').remove()">✕</button></td></tr>';
         }).join('') +
@@ -3258,7 +3291,7 @@ function togglePoEdit(id) {
 function addPoEditRow(id) {
   const tbody = document.getElementById('poEditItems-' + id);
   const tr = document.createElement('tr');
-  tr.innerHTML = '<td><div class="item-ac-wrap"><input type="text" class="item-ac-input" placeholder="e.g. Basmati Rice" oninput="onItemInput(this)" onfocus="onItemInput(this)" onkeydown="onItemKeydown(event,this)" onblur="onItemBlur(this)"><div class="item-ac-list hidden"></div></div></td><td><input type="text" class="qty-input" placeholder="0"></td><td><input type="text" class="unit-input" placeholder="kg"></td><td><input type="text" class="ed-desc" placeholder="e.g. urgent"></td><td><button class="rm-btn" onclick="this.closest(\'tr\').remove()">✕</button></td>';
+  tr.innerHTML = '<td><div class="item-ac-wrap"><input type="text" class="item-ac-input" placeholder="e.g. Basmati Rice" oninput="onItemInput(this)" onfocus="onItemInput(this)" onkeydown="onItemKeydown(event,this)" onblur="onItemBlur(this)"><div class="item-ac-list hidden"></div></div></td><td><input type="text" class="qty-input" placeholder="0"></td><td><input type="text" class="unit-input" readonly tabindex="-1" title="Unit comes from the raw material list and cannot be changed here" placeholder="kg"></td><td><input type="text" class="ed-desc" placeholder="e.g. urgent"></td><td><button class="rm-btn" onclick="this.closest(\'tr\').remove()">✕</button></td>';
   tbody.appendChild(tr);
 }
 
@@ -3275,6 +3308,11 @@ async function savePoEdit(id) {
   }).filter(function (it) { return it.name; });
   const note = document.getElementById('poEditNote-' + id).value.trim();
   const banner = document.getElementById('poEditBanner-' + id);
+  if (flagMissingQty_(tbody)) {
+    banner.textContent = 'Please enter a quantity for every item (highlighted in red).';
+    banner.className = 'banner show err';
+    return;
+  }
   const invalidPoEditItems = findInvalidItemNames_(items);
   if (invalidPoEditItems.length) {
     banner.textContent = 'Not in the raw material list: ' + invalidPoEditItems.join(', ') + ' — pick from the dropdown or add it first.';
@@ -3733,7 +3771,7 @@ function addProdRow() {
   tr.innerHTML =
     '<td><div class="item-ac-wrap"><input type="text" class="item-ac-input" placeholder="e.g. Basmati Rice" oninput="onItemInput(this)" onfocus="onItemInput(this)" onkeydown="onItemKeydown(event,this)" onblur="onItemBlur(this)"><div class="item-ac-list hidden"></div></div></td>' +
     '<td><input type="text" class="qty-input" placeholder="0"></td>' +
-    '<td><input type="text" class="unit-input" placeholder="kg"></td>' +
+    '<td><input type="text" class="unit-input" readonly tabindex="-1" title="Unit comes from the raw material list and cannot be changed here" placeholder="kg"></td>' +
     '<td><input type="text" class="item-desc-input" placeholder="e.g. urgent"></td>' +
     '<td><button class="rm-btn" onclick="this.closest(\'tr\').remove()">✕</button></td>';
   tbody.appendChild(tr);
@@ -4330,6 +4368,9 @@ async function submitProdRequest() {
   if (items.length === 0) {
     showBanner('prBanner', 'Please add at least one item.', 'err'); return;
   }
+  if (flagMissingQty_(document.getElementById('prItemsBody'))) {
+    showBanner('prBanner', 'Please enter a quantity for every item (highlighted in red).', 'err'); return;
+  }
   const invalidItems = findInvalidItemNames_(items);
   if (invalidItems.length) {
     showBanner('prBanner', 'Not in the raw material list: ' + invalidItems.join(', ') + ' — please pick from the dropdown.', 'err');
@@ -4559,7 +4600,7 @@ function renderMyProductionRequests_() {
         r.items.map(function (it) {
           return '<tr><td><div class="item-ac-wrap"><input type="text" class="item-ac-input" value="' + escapeAttr_(it.name) + '" oninput="onItemInput(this)" onfocus="onItemInput(this)" onkeydown="onItemKeydown(event,this)" onblur="onItemBlur(this)"><div class="item-ac-list hidden"></div></div></td>' +
             '<td><input type="text" class="qty-input" value="' + escapeAttr_(it.qty) + '"></td>' +
-            '<td><input type="text" class="unit-input" value="' + escapeAttr_(it.unit) + '"></td>' +
+            '<td><input type="text" class="unit-input" readonly tabindex="-1" title="Unit comes from the raw material list and cannot be changed here" value="' + escapeAttr_(it.unit) + '"></td>' +
             '<td><input type="text" class="ed-desc" value="' + escapeAttr_(it.description || '') + '"></td>' +
             '<td><button class="rm-btn" onclick="this.closest(\'tr\').remove()">✕</button></td></tr>';
         }).join('') +
@@ -4581,7 +4622,7 @@ function toggleEditMyRequest(id) {
 function addEditProdRow(id) {
   const tbody = document.getElementById('editItems-' + id);
   const tr = document.createElement('tr');
-  tr.innerHTML = '<td><div class="item-ac-wrap"><input type="text" class="item-ac-input" placeholder="e.g. Basmati Rice" oninput="onItemInput(this)" onfocus="onItemInput(this)" onkeydown="onItemKeydown(event,this)" onblur="onItemBlur(this)"><div class="item-ac-list hidden"></div></div></td><td><input type="text" class="qty-input" placeholder="0"></td><td><input type="text" class="unit-input" placeholder="kg"></td><td><input type="text" class="ed-desc" placeholder="e.g. urgent"></td><td><button class="rm-btn" onclick="this.closest(\'tr\').remove()">✕</button></td>';
+  tr.innerHTML = '<td><div class="item-ac-wrap"><input type="text" class="item-ac-input" placeholder="e.g. Basmati Rice" oninput="onItemInput(this)" onfocus="onItemInput(this)" onkeydown="onItemKeydown(event,this)" onblur="onItemBlur(this)"><div class="item-ac-list hidden"></div></div></td><td><input type="text" class="qty-input" placeholder="0"></td><td><input type="text" class="unit-input" readonly tabindex="-1" title="Unit comes from the raw material list and cannot be changed here" placeholder="kg"></td><td><input type="text" class="ed-desc" placeholder="e.g. urgent"></td><td><button class="rm-btn" onclick="this.closest(\'tr\').remove()">✕</button></td>';
   tbody.appendChild(tr);
 }
 
@@ -4598,6 +4639,11 @@ async function saveMyRequestEdit(id) {
   }).filter(function (it) { return it.name; });
   const note = document.getElementById('editNote-' + id).value.trim();
   const banner = document.getElementById('editBanner-' + id);
+  if (flagMissingQty_(tbody)) {
+    banner.textContent = 'Please enter a quantity for every item (highlighted in red).';
+    banner.className = 'banner show err';
+    return;
+  }
   const invalid = findInvalidItemNames_(items);
   if (invalid.length) {
     banner.textContent = 'Not in the raw material list: ' + invalid.join(', ') + ' — pick from the dropdown or add it first.';
@@ -4852,7 +4898,7 @@ function renderProdHeadPending_() {
       r.items.map(function (it) {
         return '<tr><td><div class="item-ac-wrap"><input type="text" class="item-ac-input" value="' + it.name + '" oninput="onItemInput(this)" onfocus="onItemInput(this)" onkeydown="onItemKeydown(event,this)" onblur="onItemBlur(this)"><div class="item-ac-list hidden"></div></div></td>' +
           '<td><input type="text" class="qty-input" value="' + it.qty + '"></td>' +
-          '<td><input type="text" class="unit-input" value="' + it.unit + '"></td>' +
+          '<td><input type="text" class="unit-input" readonly tabindex="-1" title="Unit comes from the raw material list and cannot be changed here" value="' + it.unit + '"></td>' +
           '<td><input type="text" class="ph-desc" value="' + escapeAttr_(it.description || '') + '"></td>' +
           '<td><button class="rm-btn" onclick="this.closest(\'tr\').remove()">✕</button></td></tr>';
       }).join('') +
@@ -4961,7 +5007,7 @@ async function loadProductionHeadView() {
       r.items.map(function (it) {
         return '<tr><td><div class="item-ac-wrap"><input type="text" class="item-ac-input" value="' + escapeAttr_(it.name) + '" oninput="onItemInput(this)" onfocus="onItemInput(this)" onkeydown="onItemKeydown(event,this)" onblur="onItemBlur(this)"><div class="item-ac-list hidden"></div></div></td>' +
           '<td><input type="text" class="qty-input" value="' + escapeAttr_(it.qty) + '"></td>' +
-          '<td><input type="text" class="unit-input" value="' + escapeAttr_(it.unit) + '"></td>' +
+          '<td><input type="text" class="unit-input" readonly tabindex="-1" title="Unit comes from the raw material list and cannot be changed here" value="' + escapeAttr_(it.unit) + '"></td>' +
           '<td><input type="text" class="ed-desc" value="' + escapeAttr_(it.description || '') + '"></td>' +
           '<td><button class="rm-btn" onclick="this.closest(\'tr\').remove()">✕</button></td></tr>';
       }).join('') +
@@ -5001,7 +5047,7 @@ function toggleEditForwarded(id) {
 function addForwardedEditRow(id) {
   const tbody = document.getElementById('fwEditItems-' + id);
   const tr = document.createElement('tr');
-  tr.innerHTML = '<td><div class="item-ac-wrap"><input type="text" class="item-ac-input" placeholder="e.g. Basmati Rice" oninput="onItemInput(this)" onfocus="onItemInput(this)" onkeydown="onItemKeydown(event,this)" onblur="onItemBlur(this)"><div class="item-ac-list hidden"></div></div></td><td><input type="text" class="qty-input" placeholder="0"></td><td><input type="text" class="unit-input" placeholder="kg"></td><td><input type="text" class="ed-desc" placeholder="e.g. urgent"></td><td><button class="rm-btn" onclick="this.closest(\'tr\').remove()">✕</button></td>';
+  tr.innerHTML = '<td><div class="item-ac-wrap"><input type="text" class="item-ac-input" placeholder="e.g. Basmati Rice" oninput="onItemInput(this)" onfocus="onItemInput(this)" onkeydown="onItemKeydown(event,this)" onblur="onItemBlur(this)"><div class="item-ac-list hidden"></div></div></td><td><input type="text" class="qty-input" placeholder="0"></td><td><input type="text" class="unit-input" readonly tabindex="-1" title="Unit comes from the raw material list and cannot be changed here" placeholder="kg"></td><td><input type="text" class="ed-desc" placeholder="e.g. urgent"></td><td><button class="rm-btn" onclick="this.closest(\'tr\').remove()">✕</button></td>';
   tbody.appendChild(tr);
 }
 
@@ -5017,6 +5063,11 @@ async function saveForwardedEdit(id) {
     };
   }).filter(function (it) { return it.name; });
   const banner = document.getElementById('fwEditBanner-' + id);
+  if (flagMissingQty_(tbody)) {
+    banner.textContent = 'Please enter a quantity for every item (highlighted in red).';
+    banner.className = 'banner show err';
+    return;
+  }
   const invalid = findInvalidItemNames_(items);
   if (invalid.length) {
     banner.textContent = 'Not in the raw material list: ' + invalid.join(', ') + ' — pick from the dropdown or add it first.';
@@ -5040,7 +5091,7 @@ function addPhRow(id) {
   tr.innerHTML =
     '<td><div class="item-ac-wrap"><input type="text" class="item-ac-input" placeholder="e.g. Rice" oninput="onItemInput(this)" onfocus="onItemInput(this)" onkeydown="onItemKeydown(event,this)" onblur="onItemBlur(this)"><div class="item-ac-list hidden"></div></div></td>' +
     '<td><input type="text" class="qty-input" placeholder="0"></td>' +
-    '<td><input type="text" class="unit-input" placeholder="kg"></td>' +
+    '<td><input type="text" class="unit-input" readonly tabindex="-1" title="Unit comes from the raw material list and cannot be changed here" placeholder="kg"></td>' +
     '<td><input type="text" class="ph-desc" placeholder="e.g. urgent"></td>' +
     '<td><button class="rm-btn" onclick="this.closest(\'tr\').remove()">✕</button></td>';
   tbody.appendChild(tr);
@@ -5059,6 +5110,10 @@ async function decideProdHead(id, decision) {
         unit: tr.querySelector('.unit-input').value.trim()
       };
     }).filter(function (it) { return it.name; });
+    if (flagMissingQty_(tbody)) {
+      showBanner('prodHeadBanner', 'Please enter a quantity for every item (highlighted in red).', 'err');
+      return;
+    }
     const invalid = findInvalidItemNames_(editedItems);
     if (invalid.length) {
       showBanner('prodHeadBanner', 'Not in the raw material list: ' + invalid.join(', ') + ' — pick from the dropdown or add it first.', 'err');
